@@ -1,12 +1,10 @@
 "use client";
 
 import React, { useState } from "react";
-import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
-import { Button } from "@/components/ui/button";
-import { Badge } from "@/components/ui/badge";
-import { Sparkles, ArrowRight, Building2, User, Calendar, Tag, Info, CheckCircle2, Globe2 } from "lucide-react";
+import { ArrowRight } from "lucide-react";
 
 export interface VentureData {
   id?: string;
@@ -23,16 +21,31 @@ interface VentureInitialFormProps {
   onLoadDemo: () => void;
 }
 
-const COMMON_SUSTAINABLE_SECTORS = [
-  "Reciclaje & Economía Circular",
-  "Energías Renovables & Eficiencia",
-  "Agricultura Sostenible & Alimentos",
-  "Ecoturismo & Conservación",
-  "Tecnología Limpia (CleanTech)",
-  "Moda Sostenible & Biomateriales",
-  "Gestión Hídrica & Aguas",
-  "Movilidad Eléctrica & Sostenible",
-  "Consultoría Ambiental & ESG",
+const SECTOR_SUGGESTIONS = [
+  "Reciclaje y economía circular",
+  "Alimentos y agricultura",
+  "Energía y eficiencia",
+  "Turismo y naturaleza",
+  "Moda y textiles",
+  "Servicios y consultoría",
+];
+
+const STEPS = [
+  {
+    number: "1",
+    title: "Cuéntanos de tu negocio",
+    description: "Cuatro datos básicos. Toma menos de un minuto.",
+  },
+  {
+    number: "2",
+    title: "Responde sobre 14 grupos",
+    description: "Una pantalla por grupo. Si no aplica, avanzas al siguiente.",
+  },
+  {
+    number: "3",
+    title: "Recibe tus prioridades",
+    description: "Una matriz visual, un orden de prioridad y tu informe en PDF.",
+  },
 ];
 
 export function VentureInitialForm({
@@ -41,6 +54,7 @@ export function VentureInitialForm({
   onLoadDemo,
 }: VentureInitialFormProps) {
   const [formData, setFormData] = useState<VentureData>({
+    id: initialData.id,
     ventureName: initialData.ventureName || "",
     entrepreneurName: initialData.entrepreneurName || "",
     industry: initialData.industry || "",
@@ -48,250 +62,192 @@ export function VentureInitialForm({
     notes: initialData.notes || "",
   });
 
-  const [errors, setErrors] = useState<{ [key: string]: string }>({});
+  const [errors, setErrors] = useState<Record<string, string>>({});
 
-  const validate = () => {
-    const newErrors: { [key: string]: string } = {};
-    if (!formData.ventureName.trim()) {
-      newErrors.ventureName = "El nombre del emprendimiento es obligatorio";
+  const update = (patch: Partial<VentureData>, clearError?: string) => {
+    setFormData((prev) => ({ ...prev, ...patch }));
+    if (clearError && errors[clearError]) {
+      setErrors((prev) => ({ ...prev, [clearError]: "" }));
     }
-    if (!formData.entrepreneurName.trim()) {
-      newErrors.entrepreneurName = "El nombre del emprendedor/a es obligatorio";
-    }
-    if (!formData.industry.trim()) {
-      newErrors.industry = "Debes indicar el rubro o actividad económica";
-    }
-    setErrors(newErrors);
-    return Object.keys(newErrors).length === 0;
   };
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    if (validate()) {
+
+    const nextErrors: Record<string, string> = {};
+    if (!formData.ventureName.trim()) {
+      nextErrors.ventureName = "Escribe el nombre de tu emprendimiento";
+    }
+    if (!formData.entrepreneurName.trim()) {
+      nextErrors.entrepreneurName = "Escribe tu nombre";
+    }
+    if (!formData.industry.trim()) {
+      nextErrors.industry = "Indica a qué se dedica tu negocio";
+    }
+
+    setErrors(nextErrors);
+    if (Object.keys(nextErrors).length === 0) {
       onComplete(formData);
     }
   };
 
   return (
-    <div className="mx-auto max-w-3xl space-y-6">
-      {/* Intro Hero Banner */}
-      <div className="relative overflow-hidden rounded-3xl bg-gradient-to-br from-emerald-800 via-teal-900 to-zinc-950 p-6 text-white shadow-xl sm:p-8">
-        <div className="absolute right-0 top-0 -mr-16 -mt-16 size-64 rounded-full bg-emerald-500/10 blur-3xl" />
-        <div className="absolute bottom-0 left-0 -ml-16 -mb-16 size-64 rounded-full bg-teal-400/10 blur-3xl" />
+    <div className="mx-auto max-w-2xl">
+      {/* Introducción */}
+      <section className="pt-4 pb-10 sm:pt-10 sm:pb-14">
+        <p className="text-xs font-medium uppercase tracking-[0.14em] text-brand-strong">
+          Emprende Clima
+        </p>
+        <h1 className="mt-3 text-3xl font-semibold leading-[1.15] tracking-tight text-balance sm:text-4xl">
+          Análisis de stakeholders
+        </h1>
+        <p className="mt-4 max-w-xl text-base leading-relaxed text-muted-foreground sm:text-lg">
+          Los stakeholders son personas, grupos u organizaciones que pueden influir en tu
+          emprendimiento o verse afectados por las actividades de tu negocio.
+        </p>
 
-        <div className="relative z-10 space-y-4">
-          <div className="inline-flex items-center gap-2 rounded-full bg-white/10 px-3 py-1 text-xs font-medium text-emerald-200 backdrop-blur-md">
-            <Sparkles className="size-3.5" />
-            <span>Emprende Clima · Metodología de Impacto</span>
-          </div>
+        <ol className="mt-8 grid gap-px overflow-hidden rounded-xl border border-border bg-border sm:grid-cols-3">
+          {STEPS.map((step) => (
+            <li key={step.number} className="bg-card p-4 sm:p-5">
+              <span className="flex size-6 items-center justify-center rounded-full border border-brand-line bg-brand-soft text-xs font-semibold text-brand-strong">
+                {step.number}
+              </span>
+              <h2 className="mt-3 text-sm font-semibold">{step.title}</h2>
+              <p className="mt-1 text-sm leading-relaxed text-muted-foreground">
+                {step.description}
+              </p>
+            </li>
+          ))}
+        </ol>
+      </section>
 
-          <h1 className="text-2xl font-extrabold tracking-tight sm:text-3xl lg:text-4xl text-white">
-            Formulario de Análisis de Stakeholders
-          </h1>
-
-          {/* Official Introductory Text from Requirement Document */}
-          <div className="rounded-2xl bg-white/10 p-4 backdrop-blur-md border border-white/10">
-            <p className="text-sm sm:text-base leading-relaxed text-emerald-50 font-normal">
-              <span className="font-semibold text-white">“Los stakeholders</span> son personas, grupos u organizaciones que pueden influir en tu emprendimiento o verse afectados por las actividades de tu negocio.”
+      {/* Formulario */}
+      <form onSubmit={handleSubmit} noValidate className="space-y-7">
+        <div className="space-y-2">
+          <label htmlFor="ventureName" className="block text-sm font-medium">
+            ¿Cómo se llama tu emprendimiento?
+          </label>
+          <Input
+            id="ventureName"
+            value={formData.ventureName}
+            autoComplete="organization"
+            placeholder="Ej. EcoPack Circular"
+            aria-invalid={Boolean(errors.ventureName)}
+            aria-describedby={errors.ventureName ? "error-ventureName" : undefined}
+            onChange={(e) => update({ ventureName: e.target.value }, "ventureName")}
+            className={errors.ventureName ? "border-destructive" : ""}
+          />
+          {errors.ventureName && (
+            <p id="error-ventureName" className="text-sm text-destructive">
+              {errors.ventureName}
             </p>
-          </div>
+          )}
+        </div>
 
-          <div className="flex flex-wrap items-center gap-4 pt-1 text-xs text-emerald-200/90">
-            <div className="flex items-center gap-1.5">
-              <CheckCircle2 className="size-4 text-emerald-400" />
-              <span>14 Stakeholders clave</span>
-            </div>
-            <div className="flex items-center gap-1.5">
-              <CheckCircle2 className="size-4 text-emerald-400" />
-              <span>Matriz 2D Automática</span>
-            </div>
-            <div className="flex items-center gap-1.5">
-              <CheckCircle2 className="size-4 text-emerald-400" />
-              <span>Informe PDF descargable</span>
-            </div>
-            <div className="flex items-center gap-1.5">
-              <CheckCircle2 className="size-4 text-emerald-400" />
-              <span>Listo para Triple Impacto</span>
-            </div>
+        <div className="space-y-2">
+          <label htmlFor="entrepreneurName" className="block text-sm font-medium">
+            ¿Cuál es tu nombre?
+          </label>
+          <Input
+            id="entrepreneurName"
+            value={formData.entrepreneurName}
+            autoComplete="name"
+            placeholder="Ej. Valentina Henríquez"
+            aria-invalid={Boolean(errors.entrepreneurName)}
+            aria-describedby={
+              errors.entrepreneurName ? "error-entrepreneurName" : undefined
+            }
+            onChange={(e) =>
+              update({ entrepreneurName: e.target.value }, "entrepreneurName")
+            }
+            className={errors.entrepreneurName ? "border-destructive" : ""}
+          />
+          {errors.entrepreneurName && (
+            <p id="error-entrepreneurName" className="text-sm text-destructive">
+              {errors.entrepreneurName}
+            </p>
+          )}
+        </div>
+
+        <div className="space-y-2">
+          <label htmlFor="industry" className="block text-sm font-medium">
+            ¿A qué se dedica tu negocio?
+          </label>
+          <Input
+            id="industry"
+            value={formData.industry}
+            placeholder="Ej. Envases biodegradables"
+            aria-invalid={Boolean(errors.industry)}
+            aria-describedby={errors.industry ? "error-industry" : undefined}
+            onChange={(e) => update({ industry: e.target.value }, "industry")}
+            className={errors.industry ? "border-destructive" : ""}
+          />
+          {errors.industry && (
+            <p id="error-industry" className="text-sm text-destructive">
+              {errors.industry}
+            </p>
+          )}
+
+          <div className="flex flex-wrap gap-1.5 pt-1">
+            {SECTOR_SUGGESTIONS.map((sector) => (
+              <button
+                key={sector}
+                type="button"
+                onClick={() => update({ industry: sector }, "industry")}
+                className={`rounded-full border px-3 py-1.5 text-xs transition-colors ${
+                  formData.industry === sector
+                    ? "border-brand bg-brand-soft font-medium text-brand-strong"
+                    : "border-border text-muted-foreground hover:border-foreground/25 hover:text-foreground"
+                }`}
+              >
+                {sector}
+              </button>
+            ))}
           </div>
         </div>
-      </div>
 
-      {/* Main Card Form */}
-      <Card className="border-zinc-200/80 shadow-md dark:border-zinc-800">
-        <form onSubmit={handleSubmit}>
-          <CardHeader>
-            <div className="flex items-center justify-between">
-              <div>
-                <CardTitle className="text-xl">1. Datos Iniciales del Emprendimiento</CardTitle>
-                <CardDescription>
-                  Ingresa la información básica de tu negocio para personalizar la matriz y el reporte.
-                </CardDescription>
-              </div>
-              <Button
-                type="button"
-                variant="outline"
-                size="sm"
-                onClick={onLoadDemo}
-                className="text-xs text-emerald-700 border-emerald-200 hover:bg-emerald-50 dark:border-emerald-800 dark:text-emerald-300"
-              >
-                <Sparkles className="size-3.5 mr-1 text-emerald-600 dark:text-emerald-400" />
-                Cargar Demo
-              </Button>
-            </div>
-          </CardHeader>
+        <div className="space-y-2">
+          <label htmlFor="date" className="block text-sm font-medium">
+            Fecha
+          </label>
+          <Input
+            id="date"
+            type="date"
+            value={formData.date}
+            onChange={(e) => update({ date: e.target.value })}
+            className="sm:max-w-56"
+          />
+        </div>
 
-          <CardContent className="space-y-5">
-            {/* Nombre del emprendimiento */}
-            <div className="space-y-1.5">
-              <label
-                htmlFor="ventureName"
-                className="flex items-center gap-2 text-sm font-semibold text-zinc-900 dark:text-zinc-100"
-              >
-                <Building2 className="size-4 text-emerald-600 dark:text-emerald-400" />
-                Nombre del emprendimiento *
-              </label>
-              <Input
-                id="ventureName"
-                placeholder="Ej. EcoPack Circular SpA, SolarAgro Tech, etc."
-                value={formData.ventureName}
-                onChange={(e) => {
-                  setFormData({ ...formData, ventureName: e.target.value });
-                  if (errors.ventureName) setErrors({ ...errors, ventureName: "" });
-                }}
-                className={errors.ventureName ? "border-rose-500 focus-visible:ring-rose-500/20" : ""}
-              />
-              {errors.ventureName && (
-                <p className="text-xs text-rose-600 dark:text-rose-400">{errors.ventureName}</p>
-              )}
-            </div>
+        <div className="space-y-2">
+          <label htmlFor="notes" className="block text-sm font-medium">
+            En una frase, ¿qué hace tu negocio?{" "}
+            <span className="font-normal text-muted-foreground">(opcional)</span>
+          </label>
+          <Textarea
+            id="notes"
+            rows={2}
+            placeholder="Ej. Fabricamos envases compostables con descartes agrícolas."
+            value={formData.notes}
+            onChange={(e) => update({ notes: e.target.value })}
+          />
+        </div>
 
-            {/* Nombre del emprendedor */}
-            <div className="space-y-1.5">
-              <label
-                htmlFor="entrepreneurName"
-                className="flex items-center gap-2 text-sm font-semibold text-zinc-900 dark:text-zinc-100"
-              >
-                <User className="size-4 text-emerald-600 dark:text-emerald-400" />
-                Nombre del emprendedor o emprendedora *
-              </label>
-              <Input
-                id="entrepreneurName"
-                placeholder="Ej. Valentina Henríquez, Carlos Soto, etc."
-                value={formData.entrepreneurName}
-                onChange={(e) => {
-                  setFormData({ ...formData, entrepreneurName: e.target.value });
-                  if (errors.entrepreneurName) setErrors({ ...errors, entrepreneurName: "" });
-                }}
-                className={errors.entrepreneurName ? "border-rose-500 focus-visible:ring-rose-500/20" : ""}
-              />
-              {errors.entrepreneurName && (
-                <p className="text-xs text-rose-600 dark:text-rose-400">{errors.entrepreneurName}</p>
-              )}
-            </div>
+        <div className="flex flex-col gap-4 border-t border-border pt-6 sm:flex-row sm:items-center sm:justify-between">
+          <button
+            type="button"
+            onClick={onLoadDemo}
+            className="text-sm text-muted-foreground underline underline-offset-4 hover:text-foreground sm:order-2"
+          >
+            Ver un ejemplo completo
+          </button>
 
-            {/* Rubro o actividad económica */}
-            <div className="space-y-2">
-              <label
-                htmlFor="industry"
-                className="flex items-center gap-2 text-sm font-semibold text-zinc-900 dark:text-zinc-100"
-              >
-                <Tag className="size-4 text-emerald-600 dark:text-emerald-400" />
-                Rubro o actividad económica *
-              </label>
-              <Input
-                id="industry"
-                placeholder="Ej. Reciclaje y revalorización de residuos orgánicos"
-                value={formData.industry}
-                onChange={(e) => {
-                  setFormData({ ...formData, industry: e.target.value });
-                  if (errors.industry) setErrors({ ...errors, industry: "" });
-                }}
-                className={errors.industry ? "border-rose-500 focus-visible:ring-rose-500/20" : ""}
-              />
-              {errors.industry && (
-                <p className="text-xs text-rose-600 dark:text-rose-400">{errors.industry}</p>
-              )}
-
-              {/* Quick preset chips */}
-              <div className="pt-1">
-                <span className="text-xs font-medium text-muted-foreground">Sugerencias rápidas:</span>
-                <div className="mt-1.5 flex flex-wrap gap-1.5">
-                  {COMMON_SUSTAINABLE_SECTORS.map((sector) => (
-                    <button
-                      key={sector}
-                      type="button"
-                      onClick={() => {
-                        setFormData({ ...formData, industry: sector });
-                        if (errors.industry) setErrors({ ...errors, industry: "" });
-                      }}
-                      className={`rounded-lg border px-2.5 py-1 text-xs transition-all ${
-                        formData.industry === sector
-                          ? "border-emerald-600 bg-emerald-50 font-semibold text-emerald-800 dark:bg-emerald-950 dark:text-emerald-300"
-                          : "border-zinc-200 bg-zinc-50 text-zinc-700 hover:border-zinc-300 hover:bg-zinc-100 dark:border-zinc-800 dark:bg-zinc-900 dark:text-zinc-300"
-                      }`}
-                    >
-                      {sector}
-                    </button>
-                  ))}
-                </div>
-              </div>
-            </div>
-
-            {/* Grid for Date & Short Description/Notes */}
-            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-              <div className="space-y-1.5">
-                <label
-                  htmlFor="date"
-                  className="flex items-center gap-2 text-sm font-semibold text-zinc-900 dark:text-zinc-100"
-                >
-                  <Calendar className="size-4 text-emerald-600 dark:text-emerald-400" />
-                  Fecha de realización
-                </label>
-                <Input
-                  id="date"
-                  type="date"
-                  value={formData.date}
-                  onChange={(e) => setFormData({ ...formData, date: e.target.value })}
-                />
-              </div>
-
-              <div className="space-y-1.5 sm:col-span-2">
-                <label
-                  htmlFor="notes"
-                  className="flex items-center gap-2 text-sm font-semibold text-zinc-900 dark:text-zinc-100"
-                >
-                  <Globe2 className="size-4 text-emerald-600 dark:text-emerald-400" />
-                  Propósito o breve descripción del negocio (opcional)
-                </label>
-                <Textarea
-                  id="notes"
-                  rows={2}
-                  placeholder="Describe brevemente la propuesta de valor sostenible de tu emprendimiento..."
-                  value={formData.notes}
-                  onChange={(e) => setFormData({ ...formData, notes: e.target.value })}
-                />
-              </div>
-            </div>
-          </CardContent>
-
-          <CardFooter className="flex flex-col sm:flex-row items-center justify-between gap-3 border-t border-zinc-100 pt-5 dark:border-zinc-800">
-            <div className="flex items-center gap-2 text-xs text-muted-foreground">
-              <Info className="size-4 text-emerald-600" />
-              <span>Optimizado para celulares y computadores.</span>
-            </div>
-
-            <Button
-              type="submit"
-              size="lg"
-              className="w-full sm:w-auto bg-gradient-to-r from-emerald-600 to-teal-600 text-white shadow-md hover:from-emerald-700 hover:to-teal-700 font-semibold px-6"
-            >
-              <span>Comenzar Evaluación de Stakeholders</span>
-              <ArrowRight className="size-4 ml-1.5" />
-            </Button>
-          </CardFooter>
-        </form>
-      </Card>
+          <Button type="submit" size="xl" className="w-full sm:order-1 sm:w-auto">
+            Comenzar
+            <ArrowRight className="size-4" />
+          </Button>
+        </div>
+      </form>
     </div>
   );
 }

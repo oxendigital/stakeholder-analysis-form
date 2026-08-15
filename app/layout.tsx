@@ -1,29 +1,23 @@
-import type { Metadata } from "next";
-import { Geist, Geist_Mono } from "next/font/google";
+import type { Metadata, Viewport } from "next";
+import { Geist } from "next/font/google";
 import "./globals.css";
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
   subsets: ["latin"],
-});
-
-const geistMono = Geist_Mono({
-  variable: "--font-geist-mono",
-  subsets: ["latin"],
+  display: "swap",
 });
 
 export const metadata: Metadata = {
-  title: "Formulario de Análisis de Stakeholders | Emprende Clima",
+  title: "Análisis de Stakeholders | Emprende Clima",
   description:
-    "Herramienta interactiva para emprendedores de Emprende Clima: identifica tus stakeholders, evalúa su importancia e impacto, y genera tu matriz visual y reporte de sostenibilidad.",
-  keywords: [
-    "Stakeholders",
-    "Emprende Clima",
-    "Triple Impacto",
-    "Sostenibilidad",
-    "Matriz de Priorización",
-    "Economía Circular",
-  ],
+    "Identifica los grupos de interés de tu emprendimiento, evalúa su importancia e impacto, y obtén tu matriz de prioridades y un informe en PDF.",
+};
+
+export const viewport: Viewport = {
+  width: "device-width",
+  initialScale: 1,
+  themeColor: "#faf9f7",
 };
 
 export default function RootLayout({
@@ -32,10 +26,7 @@ export default function RootLayout({
   children: React.ReactNode;
 }) {
   return (
-    <html
-      lang="es"
-      className={`${geistSans.variable} ${geistMono.variable} h-full antialiased`}
-    >
+    <html lang="es" className={`${geistSans.variable} h-full`}>
       <body className="min-h-full flex flex-col">{children}</body>
     </html>
   );

@@ -1,218 +1,209 @@
 "use client";
 
-import React, { useState, useEffect } from "react";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import React, { useCallback, useEffect, useState } from "react";
+import { Trash2, X, RefreshCw } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { Badge } from "@/components/ui/badge";
-import { History, Trash2, ArrowRight, RefreshCw, Sparkles, Building2, Calendar, User } from "lucide-react";
 import { VentureData } from "./venture-initial-form";
 import { StakeholderAnswer } from "./stakeholder-wizard";
 
+interface SavedEvaluation {
+  id: string;
+  ventureName: string;
+  entrepreneurName: string;
+  industry: string;
+  date: string;
+}
+
 interface SavedEvaluationsModalProps {
-  isOpen: boolean;
   onClose: () => void;
   onLoadEvaluation: (venture: VentureData, answers: StakeholderAnswer[]) => void;
 }
 
 export function SavedEvaluationsModal({
-  isOpen,
   onClose,
   onLoadEvaluation,
 }: SavedEvaluationsModalProps) {
-  const [evaluationsList, setEvaluationsList] = useState<any[]>([]);
-  const [isLoading, setIsLoading] = useState(false);
-  const [loadingId, setLoadingId] = useState<string | null>(null);
+  const [list, setList] = useState<SavedEvaluation[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const [openingId, setOpeningId] = useState<string | null>(null);
 
-  const fetchEvaluations = async () => {
-    setIsLoading(true);
+  const requestEvaluations = useCallback(async (signal?: AbortSignal) => {
     try {
-      const res = await fetch("/api/evaluations");
+      const res = await fetch("/api/evaluations", { signal });
       const json = await res.json();
-      if (json.success) {
-        setEvaluationsList(json.data || []);
-      }
+      if (!res.ok || !json.success) throw new Error(json.error || "Error");
+      setList(json.data || []);
+      setError(null);
     } catch (e) {
-      console.error("Error fetching evaluations:", e);
+      if (signal?.aborted) return;
+      console.error("No se pudo cargar el historial:", e);
+      setError("No se pudo cargar la lista de análisis guardados.");
     } finally {
-      setIsLoading(false);
+      if (!signal?.aborted) setIsLoading(false);
     }
-  };
+  }, []);
+
+  // El modal se monta sólo cuando se abre, así que la carga ocurre una vez.
+  useEffect(() => {
+    const controller = new AbortController();
+    // La lista vive en el servidor: pedirla al montar es justamente el caso de
+    // sincronización con un sistema externo, y el estado se actualiza al responder.
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    requestEvaluations(controller.signal);
+    return () => controller.abort();
+  }, [requestEvaluations]);
 
   useEffect(() => {
-    if (isOpen) {
-      fetchEvaluations();
-    }
-  }, [isOpen]);
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key === "Escape") onClose();
+    };
+    document.addEventListener("keydown", onKeyDown);
+    return () => document.removeEventListener("keydown", onKeyDown);
+  }, [onClose]);
 
-  if (!isOpen) return null;
+  const refresh = () => {
+    setIsLoading(true);
+    requestEvaluations();
+  };
 
-  const handleSelect = async (evalItem: any) => {
-    setLoadingId(evalItem.id);
+  const handleOpen = async (id: string) => {
+    setOpeningId(id);
+    setError(null);
     try {
-      const res = await fetch(`/api/evaluations/${evalItem.id}`);
+      const res = await fetch(`/api/evaluations/${id}`);
       const json = await res.json();
-      if (json.success && json.data) {
-        const item = json.data;
-        const venture: VentureData = {
-          id: item.id,
-          ventureName: item.ventureName,
-          entrepreneurName: item.entrepreneurName,
-          industry: item.industry,
-          date: item.date,
-          notes: item.notes || "",
-        };
+      if (!res.ok || !json.success || !json.data) throw new Error(json.error || "Error");
 
-        const answers: StakeholderAnswer[] = (item.responses || []).map((r: any) => ({
-          stakeholderKey: r.stakeholderKey,
-          stakeholderName: r.stakeholderName,
-          category: r.category,
-          tripleImpactDimension: r.tripleImpactDimension,
-          isCustom: Boolean(r.isCustom),
-          isRelated: Boolean(r.isRelated),
-          importance: r.importance,
-          impactOnVenture: r.impactOnVenture,
-          impactOfVenture: r.impactOfVenture,
-          notes: r.notes,
-        }));
+      const item = json.data;
+      const venture: VentureData = {
+        id: item.id,
+        ventureName: item.ventureName,
+        entrepreneurName: item.entrepreneurName,
+        industry: item.industry,
+        date: item.date,
+        notes: item.notes || "",
+      };
 
-        onLoadEvaluation(venture, answers);
-        onClose();
-      }
+      const answers: StakeholderAnswer[] = (item.responses || []).map((r: Record<string, unknown>) => ({
+        stakeholderKey: String(r.stakeholderKey),
+        stakeholderName: String(r.stakeholderName),
+        category: (r.category as string) || undefined,
+        tripleImpactDimension: (r.tripleImpactDimension as string) || undefined,
+        isCustom: Boolean(r.isCustom),
+        isRelated: Boolean(r.isRelated),
+        importance: (r.importance as StakeholderAnswer["importance"]) ?? null,
+        impactOnVenture: (r.impactOnVenture as StakeholderAnswer["impactOnVenture"]) ?? null,
+        impactOfVenture: (r.impactOfVenture as StakeholderAnswer["impactOfVenture"]) ?? null,
+        notes: (r.notes as string) || "",
+      }));
+
+      onLoadEvaluation(venture, answers);
+      onClose();
     } catch (e) {
-      console.error("Error loading evaluation:", e);
-      alert("Error al cargar la evaluación.");
+      console.error("No se pudo abrir el análisis:", e);
+      setError("No se pudo abrir ese análisis.");
     } finally {
-      setLoadingId(null);
+      setOpeningId(null);
     }
   };
 
-  const handleDelete = async (id: string, e: React.MouseEvent) => {
-    e.stopPropagation();
-    if (!confirm("¿Seguro que deseas eliminar esta evaluación?")) return;
+  const handleDelete = async (id: string, event: React.MouseEvent) => {
+    event.stopPropagation();
+    if (!confirm("¿Eliminar este análisis guardado?")) return;
 
     try {
-      await fetch(`/api/evaluations/${id}`, { method: "DELETE" });
-      setEvaluationsList((prev) => prev.filter((item) => item.id !== id));
-    } catch (err) {
-      console.error(err);
+      const res = await fetch(`/api/evaluations/${id}`, { method: "DELETE" });
+      if (!res.ok) throw new Error("Error");
+      setList((prev) => prev.filter((item) => item.id !== id));
+    } catch (e) {
+      console.error("No se pudo eliminar:", e);
+      setError("No se pudo eliminar ese análisis.");
     }
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-xs p-4 animate-in fade-in duration-200">
-      <div className="relative w-full max-w-2xl overflow-hidden rounded-3xl bg-white shadow-2xl border border-zinc-200 dark:bg-zinc-950 dark:border-zinc-800">
-        {/* Header */}
-        <div className="flex items-center justify-between border-b border-zinc-100 p-5 dark:border-zinc-800">
-          <div className="flex items-center gap-2.5">
-            <div className="flex size-9 items-center justify-center rounded-xl bg-emerald-100 text-emerald-800 dark:bg-emerald-950 dark:text-emerald-300">
-              <History className="size-5" />
-            </div>
-            <div>
-              <h3 className="text-base font-bold text-zinc-900 dark:text-white">
-                Evaluaciones Guardadas
-              </h3>
-              <p className="text-xs text-muted-foreground">
-                Historial sincronizado con Turso DB / SQLite local
-              </p>
-            </div>
-          </div>
-
-          <div className="flex items-center gap-2">
+    <div
+      className="fixed inset-0 z-50 flex items-end justify-center bg-foreground/25 p-0 backdrop-blur-[2px] sm:items-center sm:p-4"
+      onClick={onClose}
+      role="presentation"
+    >
+      <div
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="saved-title"
+        onClick={(event) => event.stopPropagation()}
+        className="flex max-h-[85vh] w-full max-w-lg flex-col overflow-hidden rounded-t-2xl border border-border bg-card sm:rounded-2xl"
+      >
+        <div className="flex items-center justify-between border-b border-border px-5 py-4">
+          <h2 id="saved-title" className="text-base font-semibold">
+            Análisis guardados
+          </h2>
+          <div className="flex items-center gap-1">
             <Button
               variant="ghost"
               size="icon-sm"
-              onClick={fetchEvaluations}
+              onClick={refresh}
               disabled={isLoading}
-              title="Recargar lista"
+              aria-label="Actualizar lista"
             >
               <RefreshCw className={`size-4 ${isLoading ? "animate-spin" : ""}`} />
             </Button>
-            <button
-              onClick={onClose}
-              className="size-8 rounded-full text-zinc-400 hover:bg-zinc-100 hover:text-zinc-700 flex items-center justify-center dark:hover:bg-zinc-800"
-            >
-              ✕
-            </button>
+            <Button variant="ghost" size="icon-sm" onClick={onClose} aria-label="Cerrar">
+              <X className="size-4" />
+            </Button>
           </div>
         </div>
 
-        {/* Content */}
-        <div className="max-h-[60vh] overflow-y-auto p-5 space-y-3">
-          {isLoading && evaluationsList.length === 0 && (
-            <div className="text-center py-10 text-xs text-muted-foreground">
-              Cargando historial de la base de datos...
-            </div>
+        <div className="min-h-32 flex-1 overflow-y-auto">
+          {error && <p className="px-5 py-4 text-sm text-destructive">{error}</p>}
+
+          {isLoading && list.length === 0 && (
+            <p className="px-5 py-10 text-center text-sm text-muted-foreground">Cargando…</p>
           )}
 
-          {!isLoading && evaluationsList.length === 0 && (
-            <div className="rounded-2xl border border-dashed border-zinc-200 p-8 text-center dark:border-zinc-800">
-              <History className="size-8 mx-auto text-zinc-300 mb-2" />
-              <p className="text-sm font-semibold text-zinc-700 dark:text-zinc-300">
-                No hay evaluaciones guardadas aún
-              </p>
-              <p className="text-xs text-muted-foreground mt-1">
-                Completa un análisis y haz clic en "Guardar en Turso DB" para preservarlo.
-              </p>
-            </div>
+          {!isLoading && list.length === 0 && !error && (
+            <p className="px-5 py-10 text-center text-sm text-muted-foreground">
+              Todavía no hay análisis guardados. Al terminar uno, usa el botón
+              &ldquo;Guardar análisis&rdquo;.
+            </p>
           )}
 
-          {evaluationsList.map((item) => (
+          {list.map((item) => (
             <div
               key={item.id}
-              onClick={() => handleSelect(item)}
-              className="group flex flex-col sm:flex-row sm:items-center justify-between gap-3 rounded-2xl border border-zinc-200 p-4 transition-all hover:border-emerald-500 hover:bg-emerald-50/20 cursor-pointer dark:border-zinc-800 dark:hover:bg-zinc-900"
+              className="flex items-center gap-2 border-b border-border pr-3 last:border-b-0"
             >
-              <div className="space-y-1">
-                <div className="flex items-center gap-2">
-                  <h4 className="text-sm font-bold text-zinc-900 group-hover:text-emerald-700 dark:text-white dark:group-hover:text-emerald-400">
-                    {item.ventureName}
-                  </h4>
-                  <Badge variant="outline" className="text-[10px]">
-                    {item.industry}
-                  </Badge>
-                </div>
-
-                <div className="flex flex-wrap items-center gap-3 text-xs text-muted-foreground">
-                  <span className="flex items-center gap-1">
-                    <User className="size-3 text-emerald-600" />
-                    {item.entrepreneurName}
+              <button
+                type="button"
+                onClick={() => handleOpen(item.id)}
+                disabled={openingId === item.id}
+                className="flex min-w-0 flex-1 items-center gap-3 py-4 pl-5 text-left transition-colors hover:bg-muted disabled:opacity-60"
+              >
+                <span className="min-w-0 flex-1">
+                  <span className="block truncate text-sm font-medium">{item.ventureName}</span>
+                  <span className="block truncate text-sm text-muted-foreground">
+                    {[item.entrepreneurName, item.industry, item.date]
+                      .filter(Boolean)
+                      .join(" · ")}
                   </span>
-                  <span className="flex items-center gap-1">
-                    <Calendar className="size-3 text-emerald-600" />
-                    {item.date}
-                  </span>
-                </div>
-              </div>
+                </span>
+                <span className="shrink-0 text-sm text-muted-foreground">
+                  {openingId === item.id ? "Abriendo…" : "Abrir"}
+                </span>
+              </button>
 
-              <div className="flex items-center gap-2 self-end sm:self-center">
-                <Button
-                  variant="ghost"
-                  size="icon-xs"
-                  onClick={(e) => handleDelete(item.id, e)}
-                  className="text-zinc-400 hover:text-rose-600"
-                  title="Eliminar de la BD"
-                >
-                  <Trash2 className="size-3.5" />
-                </Button>
-
-                <Button
-                  size="sm"
-                  disabled={loadingId === item.id}
-                  className="text-xs font-semibold bg-emerald-600 text-white hover:bg-emerald-700"
-                >
-                  <span>{loadingId === item.id ? "Cargando..." : "Abrir"}</span>
-                  <ArrowRight className="size-3 ml-1" />
-                </Button>
-              </div>
+              <Button
+                variant="ghost"
+                size="icon-sm"
+                onClick={(event) => handleDelete(item.id, event)}
+                aria-label={`Eliminar ${item.ventureName}`}
+                className="shrink-0 text-muted-foreground hover:text-destructive"
+              >
+                <Trash2 className="size-4" />
+              </Button>
             </div>
           ))}
-        </div>
-
-        {/* Footer */}
-        <div className="border-t border-zinc-100 bg-zinc-50 p-4 flex justify-end dark:border-zinc-800 dark:bg-zinc-900">
-          <Button variant="outline" size="sm" onClick={onClose} className="text-xs">
-            Cerrar
-          </Button>
         </div>
       </div>
     </div>

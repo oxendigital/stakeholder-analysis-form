@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useEffect } from "react";
+import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   Users,
   Briefcase,
@@ -15,32 +15,23 @@ import {
   GraduationCap,
   Network,
   Leaf,
-  PlusCircle,
+  Plus,
   ArrowLeft,
   ArrowRight,
-  CheckCircle2,
-  Sparkles,
-  HelpCircle,
+  Check,
+  X,
+  List,
   Trash2,
-  Layers,
-  ChevronRight,
-  Zap,
+  ChevronDown,
 } from "lucide-react";
-import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
-import { Textarea } from "@/components/ui/textarea";
 import { Progress } from "@/components/ui/progress";
-import {
-  DEFAULT_STAKEHOLDERS,
-  DefaultStakeholderItem,
-} from "@/lib/stakeholders-data";
+import { DEFAULT_STAKEHOLDERS, DefaultStakeholderItem } from "@/lib/stakeholders-data";
 import {
   calculateStakeholderPriority,
   ImportanceLevel,
   ImpactLevel,
-  PriorityLevel,
 } from "@/lib/matrix-calculations";
 
 export interface StakeholderAnswer {
@@ -49,7 +40,7 @@ export interface StakeholderAnswer {
   category?: string;
   tripleImpactDimension?: string;
   isCustom?: boolean;
-  isRelated: boolean | null; // null = unanswered yet
+  isRelated: boolean | null; // null = todavía sin responder
   importance: ImportanceLevel | null;
   impactOnVenture: ImpactLevel | null;
   impactOfVenture: ImpactLevel | null;
@@ -64,58 +55,56 @@ interface StakeholderWizardProps {
   ventureName: string;
 }
 
-const ICON_MAP: Record<string, React.ReactNode> = {
-  Users: <Users className="size-6" />,
-  Briefcase: <Briefcase className="size-6" />,
-  Truck: <Truck className="size-6" />,
-  Handshake: <Handshake className="size-6" />,
-  TrendingUp: <TrendingUp className="size-6" />,
-  Landmark: <Landmark className="size-6" />,
-  Building2: <Building2 className="size-6" />,
-  ShieldAlert: <ShieldAlert className="size-6" />,
-  Home: <HomeIcon className="size-6" />,
-  HeartHandshake: <HeartHandshake className="size-6" />,
-  GraduationCap: <GraduationCap className="size-6" />,
-  Network: <Network className="size-6" />,
-  Leaf: <Leaf className="size-6" />,
-  PlusCircle: <PlusCircle className="size-6" />,
+const ICON_MAP: Record<string, React.ComponentType<{ className?: string }>> = {
+  Users,
+  Briefcase,
+  Truck,
+  Handshake,
+  TrendingUp,
+  Landmark,
+  Building2,
+  ShieldAlert,
+  Home: HomeIcon,
+  HeartHandshake,
+  GraduationCap,
+  Network,
+  Leaf,
+  PlusCircle: Plus,
 };
 
-const IMPORTANCE_OPTIONS: { value: ImportanceLevel; label: string; desc: string }[] = [
-  {
-    value: "Poco importante",
-    label: "Poco importante",
-    desc: "Su aporte o rol es secundario para la operación actual.",
-  },
+const IMPORTANCE_OPTIONS: { value: ImportanceLevel; label: string; hint: string }[] = [
+  { value: "Poco importante", label: "Poco importante", hint: "Su rol es secundario" },
   {
     value: "Medianamente importante",
     label: "Medianamente importante",
-    desc: "Influye de forma relevante pero no paraliza el negocio.",
+    hint: "Influye, pero el negocio sigue",
   },
-  {
-    value: "Muy importante",
-    label: "Muy importante",
-    desc: "Esencial o crítico para el funcionamiento y éxito.",
-  },
+  { value: "Muy importante", label: "Muy importante", hint: "Es clave para funcionar" },
 ];
 
-const IMPACT_OPTIONS: { value: ImpactLevel; label: string; desc: string }[] = [
-  {
-    value: "Bajo impacto",
-    label: "Bajo impacto",
-    desc: "Efecto menor o fácilmente gestionable.",
-  },
-  {
-    value: "Impacto medio",
-    label: "Impacto medio",
-    desc: "Efecto perceptible en recursos, imagen o resultados.",
-  },
-  {
-    value: "Alto impacto",
-    label: "Alto impacto",
-    desc: "Efecto determinante o de gran magnitud.",
-  },
+const IMPACT_OPTIONS: { value: ImpactLevel; label: string; hint: string }[] = [
+  { value: "Bajo impacto", label: "Bajo impacto", hint: "Efecto pequeño o manejable" },
+  { value: "Impacto medio", label: "Impacto medio", hint: "Se nota, pero no define" },
+  { value: "Alto impacto", label: "Alto impacto", hint: "Puede cambiar el rumbo" },
 ];
+
+function isComplete(answer?: StakeholderAnswer): boolean {
+  if (!answer || answer.isRelated === null) return false;
+  if (answer.isRelated === false) return true;
+  return Boolean(answer.importance && answer.impactOnVenture && answer.impactOfVenture);
+}
+
+function buildCustomItem(id: string, name: string): DefaultStakeholderItem {
+  return {
+    id,
+    name,
+    category: "Otro",
+    tripleImpactDimension: "Transversal",
+    iconName: "PlusCircle",
+    shortDescription: "Otro grupo importante para tu negocio. Escribe su nombre.",
+    examples: [],
+  };
+}
 
 export function StakeholderWizard({
   answers: initialAnswers,
@@ -124,52 +113,47 @@ export function StakeholderWizard({
   onBackToProfile,
   ventureName,
 }: StakeholderWizardProps) {
-  // Combine default stakeholders + custom stakeholders
-  const [stakeholderList, setStakeholderList] = useState<DefaultStakeholderItem[]>(DEFAULT_STAKEHOLDERS);
-  const [currentIndex, setCurrentIndex] = useState(0);
-  const [answersMap, setAnswersMap] = useState<Record<string, StakeholderAnswer>>({});
-  const [autoAdvanceOnNo, setAutoAdvanceOnNo] = useState(true);
-  const [showQuickDrawer, setShowQuickDrawer] = useState(false);
+  // El wizard se monta con las respuestas ya guardadas y desde ahí es la fuente
+  // de verdad, así que el estado se inicializa una sola vez.
+  const [stakeholderList, setStakeholderList] = useState<DefaultStakeholderItem[]>(() => {
+    const known = new Set(DEFAULT_STAKEHOLDERS.map((s) => s.id));
+    const extras = initialAnswers
+      .filter((a) => a.isCustom && !known.has(a.stakeholderKey))
+      .map((a) => buildCustomItem(a.stakeholderKey, a.stakeholderName));
+    return [...DEFAULT_STAKEHOLDERS, ...extras];
+  });
 
-  // Initialize answers map
+  const [answersMap, setAnswersMap] = useState<Record<string, StakeholderAnswer>>(() =>
+    Object.fromEntries(initialAnswers.map((a) => [a.stakeholderKey, a]))
+  );
+
+  const [currentIndex, setCurrentIndex] = useState(() => {
+    const map = Object.fromEntries(initialAnswers.map((a) => [a.stakeholderKey, a]));
+    const firstPending = DEFAULT_STAKEHOLDERS.findIndex((s) => !isComplete(map[s.id]));
+    return firstPending === -1 ? 0 : firstPending;
+  });
+
+  const [showList, setShowList] = useState(false);
+  const [showHelp, setShowHelp] = useState(false);
+
+  const cardRef = useRef<HTMLDivElement>(null);
+  const advanceTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+
   useEffect(() => {
-    const map: Record<string, StakeholderAnswer> = {};
-    // Load from initial answers if any
-    initialAnswers.forEach((a) => {
-      map[a.stakeholderKey] = a;
-    });
+    return () => {
+      if (advanceTimer.current) clearTimeout(advanceTimer.current);
+    };
+  }, []);
 
-    // Check for custom stakeholders in initialAnswers
-    const customItems = initialAnswers.filter((a) => a.isCustom);
-    if (customItems.length > 0) {
-      setStakeholderList((prev) => {
-        const existingKeys = new Set(prev.map((p) => p.id));
-        const toAdd = customItems
-          .filter((c) => !existingKeys.has(c.stakeholderKey))
-          .map((c) => ({
-            id: c.stakeholderKey,
-            name: c.stakeholderName,
-            category: (c.category as any) || "General",
-            tripleImpactDimension: (c.tripleImpactDimension as any) || "Transversal",
-            iconName: "PlusCircle",
-            shortDescription: "Stakeholder personalizado agregado por el emprendedor.",
-            examples: [],
-            climateContext: "Actor específico del ecosistema de tu negocio.",
-          }));
-        return [...prev, ...toAdd];
-      });
-    }
+  const currentItem = stakeholderList[currentIndex] ?? stakeholderList[0];
+  const totalCount = stakeholderList.length;
 
-    setAnswersMap(map);
-  }, [initialAnswers]);
-
-  const currentItem = stakeholderList[currentIndex] || stakeholderList[0];
-  const currentAnswer: StakeholderAnswer = answersMap[currentItem?.id] || {
-    stakeholderKey: currentItem?.id,
-    stakeholderName: currentItem?.name,
-    category: currentItem?.category,
-    tripleImpactDimension: currentItem?.tripleImpactDimension,
-    isCustom: currentItem?.id.startsWith("custom_") || false,
+  const currentAnswer: StakeholderAnswer = answersMap[currentItem.id] ?? {
+    stakeholderKey: currentItem.id,
+    stakeholderName: currentItem.name,
+    category: currentItem.category,
+    tripleImpactDimension: currentItem.tripleImpactDimension,
+    isCustom: currentItem.id.startsWith("custom_"),
     isRelated: null,
     importance: null,
     impactOnVenture: null,
@@ -177,87 +161,95 @@ export function StakeholderWizard({
     notes: "",
   };
 
-  const handleUpdateCurrent = (updates: Partial<StakeholderAnswer>) => {
+  const commit = useCallback(
+    (map: Record<string, StakeholderAnswer>) => {
+      setAnswersMap(map);
+      onSaveAnswers(Object.values(map));
+    },
+    [onSaveAnswers]
+  );
+
+  const updateCurrent = (patch: Partial<StakeholderAnswer>) => {
     const updated: StakeholderAnswer = {
       ...currentAnswer,
-      ...updates,
+      ...patch,
       stakeholderKey: currentItem.id,
-      stakeholderName: updates.stakeholderName || currentAnswer.stakeholderName || currentItem.name,
+      stakeholderName: patch.stakeholderName ?? currentAnswer.stakeholderName ?? currentItem.name,
       category: currentItem.category,
       tripleImpactDimension: currentItem.tripleImpactDimension,
+      isCustom: currentItem.id.startsWith("custom_"),
     };
+    commit({ ...answersMap, [currentItem.id]: updated });
+  };
 
-    const newMap = { ...answersMap, [currentItem.id]: updated };
-    setAnswersMap(newMap);
-
-    const ansArray = Object.values(newMap);
-    onSaveAnswers(ansArray);
+  const goTo = (index: number) => {
+    if (advanceTimer.current) clearTimeout(advanceTimer.current);
+    const next = Math.min(totalCount - 1, Math.max(0, index));
+    setCurrentIndex(next);
+    cardRef.current?.scrollIntoView({ block: "start", behavior: "smooth" });
   };
 
   const handleSetRelation = (isRelated: boolean) => {
-    if (!isRelated) {
-      handleUpdateCurrent({
-        isRelated: false,
-        importance: null,
-        impactOnVenture: null,
-        impactOfVenture: null,
-      });
+    if (isRelated) {
+      updateCurrent({ isRelated: true });
+      return;
+    }
 
-      // Auto-advance rule if enabled
-      if (autoAdvanceOnNo && currentIndex < stakeholderList.length - 1) {
-        setTimeout(() => {
-          setCurrentIndex((prev) => prev + 1);
-        }, 350);
-      }
-    } else {
-      // Default to medium if not set
-      handleUpdateCurrent({
-        isRelated: true,
-        importance: currentAnswer.importance || "Medianamente importante",
-        impactOnVenture: currentAnswer.impactOnVenture || "Impacto medio",
-        impactOfVenture: currentAnswer.impactOfVenture || "Impacto medio",
-      });
+    // Regla del requerimiento: si responde "No", se avanza automáticamente.
+    updateCurrent({
+      isRelated: false,
+      importance: null,
+      impactOnVenture: null,
+      impactOfVenture: null,
+    });
+
+    if (currentIndex < totalCount - 1) {
+      if (advanceTimer.current) clearTimeout(advanceTimer.current);
+      advanceTimer.current = setTimeout(() => goTo(currentIndex + 1), 380);
     }
   };
 
-  const handleAddCustomStakeholder = () => {
-    const customId = `custom_${Date.now()}`;
-    const newCustomItem: DefaultStakeholderItem = {
-      id: customId,
-      name: "Nuevo Stakeholder Personalizado",
-      category: "General",
-      tripleImpactDimension: "Transversal",
-      iconName: "PlusCircle",
-      shortDescription: "Stakeholder adicional específico para tu modelo de negocio.",
-      examples: ["Medios de comunicación", "Gremios locales", "Socios tecnológicos"],
-      climateContext: "Específico para las particularidades de tu negocio.",
-    };
+  const handleAddCustom = () => {
+    const taken = new Set(stakeholderList.map((item) => item.id));
+    let suffix = 1;
+    while (taken.has(`custom_${suffix}`)) suffix += 1;
 
-    setStakeholderList((prev) => [...prev, newCustomItem]);
-    setCurrentIndex(stakeholderList.length); // Jump to the new one
+    setStakeholderList((prev) => [
+      ...prev,
+      buildCustomItem(`custom_${suffix}`, "Otro grupo de interés"),
+    ]);
+
+    // No se usa `goTo`: ese ajusta el índice al largo actual de la lista, que
+    // todavía no incluye el grupo recién agregado.
+    if (advanceTimer.current) clearTimeout(advanceTimer.current);
+    setCurrentIndex(stakeholderList.length);
+    cardRef.current?.scrollIntoView({ block: "start", behavior: "smooth" });
   };
 
   const handleDeleteCustom = (id: string) => {
-    setStakeholderList((prev) => prev.filter((p) => p.id !== id));
-    const newMap = { ...answersMap };
-    delete newMap[id];
-    setAnswersMap(newMap);
-    onSaveAnswers(Object.values(newMap));
-    if (currentIndex >= stakeholderList.length - 1) {
-      setCurrentIndex(Math.max(0, stakeholderList.length - 2));
-    }
+    const nextList = stakeholderList.filter((item) => item.id !== id);
+    const nextMap = { ...answersMap };
+    delete nextMap[id];
+
+    setStakeholderList(nextList);
+    commit(nextMap);
+    setCurrentIndex((prev) => Math.min(prev, nextList.length - 1));
   };
 
-  const completedCount = stakeholderList.filter((s) => {
-    const ans = answersMap[s.id];
-    return ans && ans.isRelated !== null && (ans.isRelated === false || (ans.importance && ans.impactOnVenture));
-  }).length;
+  const completedCount = useMemo(
+    () => stakeholderList.filter((item) => isComplete(answersMap[item.id])).length,
+    [stakeholderList, answersMap]
+  );
 
-  const totalCount = stakeholderList.length;
-  const progressPercent = Math.round((completedCount / totalCount) * 100);
+  const evaluatedCount = useMemo(
+    () =>
+      Object.values(answersMap).filter(
+        (a) => a.isRelated === true && a.importance && a.impactOnVenture
+      ).length,
+    [answersMap]
+  );
 
-  // Live priority preview
-  const priorityPreview =
+  const preview =
     currentAnswer.isRelated && currentAnswer.importance && currentAnswer.impactOnVenture
       ? calculateStakeholderPriority(
           currentAnswer.importance,
@@ -267,507 +259,395 @@ export function StakeholderWizard({
         )
       : null;
 
-  const handleFinishWizard = () => {
-    const ansArray = Object.values(answersMap);
-    onFinish(ansArray);
-  };
+  const isCustom = currentItem.id.startsWith("custom_");
+  const isNameable = isCustom || currentItem.id === "otros";
+  const missingAnswers =
+    currentAnswer.isRelated === true &&
+    !(currentAnswer.importance && currentAnswer.impactOnVenture && currentAnswer.impactOfVenture);
+
+  const Icon = ICON_MAP[currentItem.iconName] ?? Users;
+  const isLast = currentIndex === totalCount - 1;
 
   return (
-    <div className="mx-auto max-w-3xl space-y-5">
-      {/* Top Header & Navigation Bar */}
-      <div className="flex flex-col gap-3 rounded-2xl border border-zinc-200/80 bg-white p-4 shadow-sm sm:flex-row sm:items-center sm:justify-between dark:border-zinc-800 dark:bg-zinc-900/90">
-        <div className="flex items-center gap-3">
-          <Button
-            variant="ghost"
-            size="sm"
-            onClick={onBackToProfile}
-            className="text-xs text-muted-foreground hover:text-zinc-900 dark:hover:text-white"
-          >
-            <ArrowLeft className="size-3.5 mr-1" />
-            Emprendimiento
-          </Button>
-          <div className="h-4 w-px bg-zinc-200 dark:bg-zinc-700" />
-          <div className="text-xs text-zinc-500 dark:text-zinc-400">
-            Evaluando: <span className="font-semibold text-zinc-900 dark:text-white">{ventureName || "Mi Emprendimiento"}</span>
-          </div>
-        </div>
-
-        <div className="flex items-center justify-between sm:justify-end gap-3">
+    <div className="mx-auto max-w-2xl pb-28 sm:pb-8">
+      {/* Encabezado y progreso */}
+      <div className="pt-2 pb-6">
+        <div className="flex items-center justify-between gap-3">
           <button
-            onClick={() => setShowQuickDrawer(!showQuickDrawer)}
-            className="flex items-center gap-1.5 rounded-lg border border-zinc-200 px-2.5 py-1 text-xs font-medium text-zinc-700 hover:bg-zinc-50 dark:border-zinc-700 dark:text-zinc-300 dark:hover:bg-zinc-800"
+            type="button"
+            onClick={onBackToProfile}
+            className="flex items-center gap-1.5 text-sm text-muted-foreground transition-colors hover:text-foreground"
           >
-            <Layers className="size-3.5 text-emerald-600 dark:text-emerald-400" />
-            <span>Lista ({completedCount}/{totalCount})</span>
+            <ArrowLeft className="size-3.5" />
+            {ventureName || "Tu emprendimiento"}
           </button>
 
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={handleFinishWizard}
-            disabled={completedCount === 0}
-            className="border-emerald-200 text-xs font-semibold text-emerald-700 hover:bg-emerald-50 dark:border-emerald-800 dark:text-emerald-300"
+          <button
+            type="button"
+            onClick={() => setShowList((prev) => !prev)}
+            aria-expanded={showList}
+            className="flex items-center gap-1.5 text-sm text-muted-foreground transition-colors hover:text-foreground"
           >
-            <span>Ver Resultados</span>
-            <Sparkles className="size-3.5 ml-1 text-emerald-600" />
-          </Button>
+            <List className="size-3.5" />
+            Ver los {totalCount}
+          </button>
         </div>
-      </div>
 
-      {/* Progress Bar & Dots */}
-      <div className="space-y-2">
-        <div className="flex items-center justify-between text-xs text-muted-foreground">
-          <span className="font-medium text-zinc-700 dark:text-zinc-300">
-            Stakeholder {currentIndex + 1} de {totalCount}
+        <div className="mt-4 flex items-baseline justify-between text-sm">
+          <span className="font-medium">
+            Grupo {currentIndex + 1} de {totalCount}
           </span>
-          <span className="font-semibold text-emerald-600 dark:text-emerald-400">
-            {progressPercent}% completado
-          </span>
+          <span className="text-muted-foreground">{completedCount} respondidos</span>
         </div>
-        <Progress value={progressPercent} max={100} className="h-2" />
+        <Progress
+          value={completedCount}
+          max={totalCount}
+          label="Avance del análisis"
+          className="mt-2"
+        />
 
-        {/* Step Dots Carousel */}
-        <div className="flex items-center gap-1.5 overflow-x-auto py-1 scrollbar-none">
-          {stakeholderList.map((st, idx) => {
-            const stAns = answersMap[st.id];
-            const isAnswered = stAns && stAns.isRelated !== null;
-            const isCurrent = idx === currentIndex;
-            const isRel = stAns?.isRelated === true;
-
-            return (
-              <button
-                key={st.id}
-                onClick={() => setCurrentIndex(idx)}
-                title={`${idx + 1}. ${st.name}`}
-                className={`flex size-7 shrink-0 items-center justify-center rounded-lg text-xs font-medium transition-all ${
-                  isCurrent
-                    ? "bg-emerald-600 text-white ring-2 ring-emerald-500/40 font-bold scale-105"
-                    : isAnswered
-                    ? isRel
-                      ? "bg-emerald-100 text-emerald-800 dark:bg-emerald-950 dark:text-emerald-300"
-                      : "bg-zinc-100 text-zinc-500 dark:bg-zinc-800 dark:text-zinc-400"
-                    : "bg-zinc-100/70 text-zinc-400 hover:bg-zinc-200 dark:bg-zinc-800/50 dark:text-zinc-500"
-                }`}
-              >
-                {idx + 1}
-              </button>
-            );
-          })}
-        </div>
-      </div>
-
-      {/* Quick Jump Drawer/List Modal if toggled */}
-      {showQuickDrawer && (
-        <Card className="border-emerald-200 bg-emerald-50/40 p-4 dark:border-emerald-900 dark:bg-emerald-950/20">
-          <div className="mb-2 flex items-center justify-between">
-            <span className="text-xs font-bold uppercase tracking-wider text-emerald-800 dark:text-emerald-300">
-              Navegador rápido de stakeholders
-            </span>
-            <button
-              onClick={() => setShowQuickDrawer(false)}
-              className="text-xs font-medium text-zinc-500 hover:text-zinc-800 dark:hover:text-zinc-200"
-            >
-              Cerrar ✕
-            </button>
-          </div>
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 max-h-56 overflow-y-auto pr-1 text-xs">
-            {stakeholderList.map((st, idx) => {
-              const ans = answersMap[st.id];
-              const answered = ans && ans.isRelated !== null;
-
+        {showList && (
+          <div className="reveal mt-4 grid gap-px overflow-hidden rounded-lg border border-border bg-border sm:grid-cols-2">
+            {stakeholderList.map((item, index) => {
+              const answer = answersMap[item.id];
+              const done = isComplete(answer);
               return (
                 <button
-                  key={st.id}
+                  key={item.id}
+                  type="button"
                   onClick={() => {
-                    setCurrentIndex(idx);
-                    setShowQuickDrawer(false);
+                    goTo(index);
+                    setShowList(false);
                   }}
-                  className={`flex items-center justify-between rounded-lg border p-2 text-left transition-all ${
-                    idx === currentIndex
-                      ? "border-emerald-600 bg-emerald-100/80 font-semibold text-emerald-900 dark:bg-emerald-900/50 dark:text-white"
-                      : "border-zinc-200 bg-white hover:bg-zinc-50 dark:border-zinc-800 dark:bg-zinc-900"
+                  className={`flex items-center justify-between gap-2 bg-card px-3 py-2.5 text-left text-sm transition-colors hover:bg-muted ${
+                    index === currentIndex ? "font-medium" : ""
                   }`}
                 >
                   <span className="truncate">
-                    {idx + 1}. {st.name}
+                    <span className="tabular-nums text-muted-foreground">{index + 1}.</span>{" "}
+                    {answer?.stakeholderName || item.name || "Sin nombre"}
                   </span>
-                  {answered ? (
-                    ans.isRelated ? (
-                      <span className="rounded bg-emerald-100 px-1.5 py-0.5 text-[10px] font-bold text-emerald-700 dark:bg-emerald-900 dark:text-emerald-300">
-                        Sí
-                      </span>
-                    ) : (
-                      <span className="rounded bg-zinc-100 px-1.5 py-0.5 text-[10px] font-bold text-zinc-500 dark:bg-zinc-800 dark:text-zinc-400">
-                        No
-                      </span>
-                    )
-                  ) : (
-                    <span className="text-[10px] text-zinc-400">Pendiente</span>
-                  )}
+                  <span className="shrink-0 text-xs text-muted-foreground">
+                    {!done ? "—" : answer?.isRelated ? "Sí" : "No"}
+                  </span>
                 </button>
               );
             })}
           </div>
-        </Card>
-      )}
+        )}
+      </div>
 
-      {/* Main Active Stakeholder Card (One at a time, optimized for mobile) */}
-      <Card className="overflow-hidden border-zinc-200/80 shadow-lg dark:border-zinc-800">
-        {/* Header with Category and Icon */}
-        <div className="border-b border-zinc-100 bg-gradient-to-r from-emerald-50/60 via-teal-50/40 to-transparent p-5 sm:p-6 dark:border-zinc-800 dark:from-emerald-950/30 dark:via-zinc-900 dark:to-transparent">
-          <div className="flex flex-wrap items-center justify-between gap-2">
-            <div className="flex items-center gap-2">
-              <Badge variant="outline" className="border-emerald-300 bg-emerald-50/80 text-emerald-800 dark:border-emerald-800 dark:bg-emerald-950 dark:text-emerald-300">
-                {currentItem.category || "Stakeholder"}
-              </Badge>
-              <Badge variant="secondary" className="text-[10px]">
-                {currentItem.tripleImpactDimension}
-              </Badge>
-            </div>
+      {/* Tarjeta del stakeholder actual */}
+      <div ref={cardRef} className="scroll-mt-20 rounded-xl border border-border bg-card">
+        <div className="border-b border-border p-5 sm:p-6">
+          <div className="flex items-start justify-between gap-3">
+            <span className="flex size-10 shrink-0 items-center justify-center rounded-lg border border-brand-line bg-brand-soft text-brand-strong">
+              <Icon className="size-5" />
+            </span>
 
-            {currentItem.id.startsWith("custom_") && (
+            {isCustom && (
               <Button
-                variant="destructive"
-                size="xs"
+                variant="ghost"
+                size="sm"
                 onClick={() => handleDeleteCustom(currentItem.id)}
-                className="text-xs"
+                className="text-muted-foreground hover:text-destructive"
               >
-                <Trash2 className="size-3 mr-1" />
-                Eliminar
+                <Trash2 className="size-3.5" />
+                Quitar
               </Button>
             )}
           </div>
 
-          <div className="mt-3 flex items-start gap-3.5">
-            <div className="flex size-12 shrink-0 items-center justify-center rounded-2xl bg-emerald-600 text-white shadow-md shadow-emerald-600/20">
-              {ICON_MAP[currentItem.iconName] || <Users className="size-6" />}
+          <p className="mt-4 text-xs uppercase tracking-[0.12em] text-muted-foreground">
+            {currentItem.category}
+          </p>
+
+          {isNameable ? (
+            <div className="mt-2 space-y-2">
+              <label htmlFor="custom-name" className="block text-lg font-semibold tracking-tight">
+                {isCustom ? "Otro grupo de interés" : "Otros"}
+              </label>
+              <Input
+                id="custom-name"
+                value={currentAnswer.stakeholderName === currentItem.name ? "" : currentAnswer.stakeholderName || ""}
+                placeholder="Escribe el nombre del grupo"
+                onChange={(e) =>
+                  updateCurrent({ stakeholderName: e.target.value || currentItem.name })
+                }
+              />
             </div>
+          ) : (
+            <h2 className="mt-2 text-2xl font-semibold tracking-tight">{currentItem.name}</h2>
+          )}
 
-            <div className="flex-1 min-w-0">
-              {currentItem.id.startsWith("custom_") || currentItem.id === "otros" ? (
-                <div className="space-y-1">
-                  <label htmlFor="custom_st_name" className="text-xs font-medium text-muted-foreground">
-                    Nombre del stakeholder:
-                  </label>
-                  <Input
-                    id="custom_st_name"
-                    value={currentAnswer.stakeholderName || currentItem.name}
-                    placeholder="Ej. Medios locales, Centros comunitarios, etc."
-                    onChange={(e) => handleUpdateCurrent({ stakeholderName: e.target.value })}
-                    className="font-bold text-base h-10"
-                  />
-                </div>
-              ) : (
-                <h2 className="text-xl font-bold tracking-tight text-zinc-900 dark:text-zinc-50">
-                  {currentIndex + 1}. {currentItem.name}
-                </h2>
-              )}
+          <p className="mt-2 text-base leading-relaxed text-muted-foreground">
+            {currentItem.shortDescription}
+          </p>
 
-              <p className="mt-1 text-xs text-zinc-600 dark:text-zinc-400 leading-relaxed">
-                {currentItem.shortDescription}
-              </p>
-
-              {currentItem.examples && currentItem.examples.length > 0 && (
-                <div className="mt-2 flex flex-wrap items-center gap-1.5">
-                  <span className="text-[11px] font-medium text-zinc-500 dark:text-zinc-400">
-                    Ejemplos:
-                  </span>
-                  {currentItem.examples.map((ex, i) => (
-                    <span
-                      key={i}
-                      className="rounded-md bg-zinc-100 px-1.5 py-0.5 text-[10px] text-zinc-700 dark:bg-zinc-800 dark:text-zinc-300"
-                    >
-                      {ex}
-                    </span>
-                  ))}
-                </div>
-              )}
-            </div>
-          </div>
+          {currentItem.examples.length > 0 && (
+            <p className="mt-2 text-sm text-muted-foreground">
+              Por ejemplo: {currentItem.examples.join(", ")}.
+            </p>
+          )}
         </div>
 
-        <CardContent className="p-5 sm:p-6 space-y-6">
-          {/* Question 1: ¿Este stakeholder tiene relación con tu emprendimiento? */}
-          <div className="space-y-3">
-            <div className="flex items-center gap-2">
-              <span className="flex size-6 items-center justify-center rounded-full bg-emerald-100 text-xs font-bold text-emerald-800 dark:bg-emerald-950 dark:text-emerald-300">
-                1
-              </span>
-              <h3 className="text-base font-semibold text-zinc-900 dark:text-zinc-100">
-                ¿Este stakeholder tiene relación con tu emprendimiento?
-              </h3>
-            </div>
+        <div className="p-5 sm:p-6">
+          {/* Pregunta inicial */}
+          <fieldset>
+            <legend className="text-base font-medium">
+              ¿Este grupo tiene relación con tu emprendimiento?
+            </legend>
 
-            {/* Big touchable buttons for mobile */}
-            <div className="grid grid-cols-2 gap-3 sm:gap-4">
+            <div className="mt-3 grid grid-cols-2 gap-3">
               <button
                 type="button"
                 onClick={() => handleSetRelation(true)}
-                className={`flex flex-col items-center justify-center gap-1.5 rounded-2xl border-2 p-4 text-center transition-all ${
+                aria-pressed={currentAnswer.isRelated === true}
+                className={`flex h-14 items-center justify-center gap-2 rounded-lg border text-base font-medium transition-colors ${
                   currentAnswer.isRelated === true
-                    ? "border-emerald-600 bg-emerald-50 text-emerald-900 shadow-sm ring-2 ring-emerald-500/20 dark:border-emerald-500 dark:bg-emerald-950/60 dark:text-emerald-100"
-                    : "border-zinc-200 bg-white text-zinc-700 hover:border-zinc-300 hover:bg-zinc-50 dark:border-zinc-800 dark:bg-zinc-900 dark:text-zinc-300 dark:hover:bg-zinc-850"
+                    ? "border-brand bg-brand-soft text-brand-strong"
+                    : "border-border bg-card hover:border-foreground/25"
                 }`}
               >
-                <div
-                  className={`flex size-8 items-center justify-center rounded-full ${
-                    currentAnswer.isRelated === true
-                      ? "bg-emerald-600 text-white"
-                      : "bg-zinc-100 text-zinc-500 dark:bg-zinc-800"
-                  }`}
-                >
-                  <CheckCircle2 className="size-5" />
-                </div>
-                <span className="text-base font-bold">Sí</span>
-                <span className="text-[11px] text-zinc-500 dark:text-zinc-400">
-                  Tiene vínculo directo o indirecto
-                </span>
+                <Check className="size-4" />
+                Sí
               </button>
 
               <button
                 type="button"
                 onClick={() => handleSetRelation(false)}
-                className={`flex flex-col items-center justify-center gap-1.5 rounded-2xl border-2 p-4 text-center transition-all ${
+                aria-pressed={currentAnswer.isRelated === false}
+                className={`flex h-14 items-center justify-center gap-2 rounded-lg border text-base font-medium transition-colors ${
                   currentAnswer.isRelated === false
-                    ? "border-zinc-600 bg-zinc-100 text-zinc-900 shadow-sm dark:border-zinc-600 dark:bg-zinc-800 dark:text-zinc-100"
-                    : "border-zinc-200 bg-white text-zinc-700 hover:border-zinc-300 hover:bg-zinc-50 dark:border-zinc-800 dark:bg-zinc-900 dark:text-zinc-300 dark:hover:bg-zinc-850"
+                    ? "border-foreground/60 bg-muted"
+                    : "border-border bg-card hover:border-foreground/25"
                 }`}
               >
-                <div
-                  className={`flex size-8 items-center justify-center rounded-full ${
-                    currentAnswer.isRelated === false
-                      ? "bg-zinc-700 text-white"
-                      : "bg-zinc-100 text-zinc-500 dark:bg-zinc-800"
-                  }`}
-                >
-                  <span className="text-sm font-bold">✕</span>
-                </div>
-                <span className="text-base font-bold">No</span>
-                <span className="text-[11px] text-zinc-500 dark:text-zinc-400">
-                  No aplica a mi negocio actualmente
-                </span>
+                <X className="size-4" />
+                No
               </button>
             </div>
-          </div>
+          </fieldset>
 
-          {/* Conditional Evaluation Questions (If Yes) */}
+          {currentAnswer.isRelated === false && (
+            <p className="reveal mt-4 text-sm text-muted-foreground">
+              Sin relación con tu negocio. {isLast ? "Puedes ver tus resultados." : "Pasamos al siguiente."}
+            </p>
+          )}
+
+          {/* Preguntas de evaluación */}
           {currentAnswer.isRelated === true && (
-            <div className="space-y-6 rounded-2xl border border-emerald-100 bg-emerald-50/20 p-4 sm:p-5 dark:border-emerald-950 dark:bg-emerald-950/10">
-              <div className="flex items-center justify-between border-b border-emerald-100 pb-3 dark:border-emerald-900/50">
-                <span className="text-xs font-bold uppercase tracking-wider text-emerald-800 dark:text-emerald-300">
-                  Evaluación de Impacto e Importancia
-                </span>
-                {priorityPreview && (
-                  <Badge variant={priorityPreview.badgeVariant} className="text-xs font-semibold py-1">
-                    <span className="size-2 rounded-full mr-1.5" style={{ backgroundColor: priorityPreview.dotColor }} />
-                    {priorityPreview.priority}
-                  </Badge>
-                )}
-              </div>
+            <div className="reveal mt-8 space-y-8">
+              <OptionGroup
+                label="¿Qué tan importante es este grupo para tu emprendimiento?"
+                name="importance"
+                options={IMPORTANCE_OPTIONS}
+                value={currentAnswer.importance}
+                onSelect={(value) => updateCurrent({ importance: value as ImportanceLevel })}
+              />
 
-              {/* A. Importancia para el emprendimiento */}
-              <div className="space-y-2.5">
-                <label className="block text-sm font-semibold text-zinc-900 dark:text-zinc-100">
-                  A. ¿Qué tan importante es este stakeholder para tu emprendimiento?
-                </label>
-                <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
-                  {IMPORTANCE_OPTIONS.map((opt) => {
-                    const isSelected = currentAnswer.importance === opt.value;
-                    return (
-                      <button
-                        key={opt.value}
-                        type="button"
-                        onClick={() => handleUpdateCurrent({ importance: opt.value })}
-                        className={`flex flex-col text-left rounded-xl border p-3 transition-all ${
-                          isSelected
-                            ? "border-emerald-600 bg-emerald-50 text-emerald-900 font-medium ring-2 ring-emerald-500/20 dark:border-emerald-500 dark:bg-emerald-950/80 dark:text-white"
-                            : "border-zinc-200 bg-white text-zinc-700 hover:border-zinc-300 hover:bg-zinc-50 dark:border-zinc-800 dark:bg-zinc-900 dark:text-zinc-300"
-                        }`}
-                      >
-                        <div className="flex items-center justify-between">
-                          <span className="text-xs font-bold">{opt.label}</span>
-                          <span
-                            className={`size-3.5 rounded-full border ${
-                              isSelected
-                                ? "border-emerald-600 bg-emerald-600"
-                                : "border-zinc-300 dark:border-zinc-600"
-                            }`}
-                          />
-                        </div>
-                        <span className="mt-1 text-[11px] text-zinc-500 dark:text-zinc-400">
-                          {opt.desc}
-                        </span>
-                      </button>
-                    );
-                  })}
-                </div>
-              </div>
+              <OptionGroup
+                label="¿Cuánto impacto puede generar este grupo sobre tu emprendimiento?"
+                name="impact-on"
+                options={IMPACT_OPTIONS}
+                value={currentAnswer.impactOnVenture}
+                onSelect={(value) => updateCurrent({ impactOnVenture: value as ImpactLevel })}
+              />
 
-              {/* B. Impacto del stakeholder sobre el emprendimiento */}
-              <div className="space-y-2.5">
-                <label className="block text-sm font-semibold text-zinc-900 dark:text-zinc-100">
-                  B. ¿Qué tanto impacto puede generar este stakeholder sobre tu emprendimiento?
-                </label>
-                <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
-                  {IMPACT_OPTIONS.map((opt) => {
-                    const isSelected = currentAnswer.impactOnVenture === opt.value;
-                    return (
-                      <button
-                        key={opt.value}
-                        type="button"
-                        onClick={() => handleUpdateCurrent({ impactOnVenture: opt.value })}
-                        className={`flex flex-col text-left rounded-xl border p-3 transition-all ${
-                          isSelected
-                            ? "border-emerald-600 bg-emerald-50 text-emerald-900 font-medium ring-2 ring-emerald-500/20 dark:border-emerald-500 dark:bg-emerald-950/80 dark:text-white"
-                            : "border-zinc-200 bg-white text-zinc-700 hover:border-zinc-300 hover:bg-zinc-50 dark:border-zinc-800 dark:bg-zinc-900 dark:text-zinc-300"
-                        }`}
-                      >
-                        <div className="flex items-center justify-between">
-                          <span className="text-xs font-bold">{opt.label}</span>
-                          <span
-                            className={`size-3.5 rounded-full border ${
-                              isSelected
-                                ? "border-emerald-600 bg-emerald-600"
-                                : "border-zinc-300 dark:border-zinc-600"
-                            }`}
-                          />
-                        </div>
-                        <span className="mt-1 text-[11px] text-zinc-500 dark:text-zinc-400">
-                          {opt.desc}
-                        </span>
-                      </button>
-                    );
-                  })}
-                </div>
-              </div>
+              <OptionGroup
+                label="¿Cuánto impacto genera tu emprendimiento sobre este grupo?"
+                name="impact-of"
+                options={IMPACT_OPTIONS}
+                value={currentAnswer.impactOfVenture}
+                onSelect={(value) => updateCurrent({ impactOfVenture: value as ImpactLevel })}
+              />
 
-              {/* C. Impacto del emprendimiento sobre el stakeholder */}
-              <div className="space-y-2.5">
-                <label className="block text-sm font-semibold text-zinc-900 dark:text-zinc-100">
-                  C. ¿Qué tanto impacto genera tu emprendimiento sobre este stakeholder?
-                </label>
-                <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
-                  {IMPACT_OPTIONS.map((opt) => {
-                    const isSelected = currentAnswer.impactOfVenture === opt.value;
-                    return (
-                      <button
-                        key={opt.value}
-                        type="button"
-                        onClick={() => handleUpdateCurrent({ impactOfVenture: opt.value })}
-                        className={`flex flex-col text-left rounded-xl border p-3 transition-all ${
-                          isSelected
-                            ? "border-emerald-600 bg-emerald-50 text-emerald-900 font-medium ring-2 ring-emerald-500/20 dark:border-emerald-500 dark:bg-emerald-950/80 dark:text-white"
-                            : "border-zinc-200 bg-white text-zinc-700 hover:border-zinc-300 hover:bg-zinc-50 dark:border-zinc-800 dark:bg-zinc-900 dark:text-zinc-300"
-                        }`}
-                      >
-                        <div className="flex items-center justify-between">
-                          <span className="text-xs font-bold">{opt.label}</span>
-                          <span
-                            className={`size-3.5 rounded-full border ${
-                              isSelected
-                                ? "border-emerald-600 bg-emerald-600"
-                                : "border-zinc-300 dark:border-zinc-600"
-                            }`}
-                          />
-                        </div>
-                        <span className="mt-1 text-[11px] text-zinc-500 dark:text-zinc-400">
-                          {opt.desc}
-                        </span>
-                      </button>
-                    );
-                  })}
-                </div>
-              </div>
-
-              {/* Optional Notes / Key Actions */}
-              <div className="space-y-1.5 pt-2">
-                <label htmlFor="notes_current_st" className="text-xs font-medium text-zinc-700 dark:text-zinc-300">
-                  Notas o comentarios específicos sobre este stakeholder (opcional):
+              <div className="space-y-2">
+                <label htmlFor="stakeholder-note" className="block text-sm font-medium">
+                  Nota <span className="font-normal text-muted-foreground">(opcional)</span>
                 </label>
                 <Input
-                  id="notes_current_st"
-                  placeholder="Ej. Persona de contacto, acuerdos clave, acuerdos de sostenibilidad..."
+                  id="stakeholder-note"
+                  placeholder="Ej. Contacto principal, acuerdos vigentes…"
                   value={currentAnswer.notes || ""}
-                  onChange={(e) => handleUpdateCurrent({ notes: e.target.value })}
-                  className="text-xs bg-white dark:bg-zinc-900"
+                  onChange={(e) => updateCurrent({ notes: e.target.value })}
                 />
               </div>
 
-              {/* Dynamic Priority Interpretation Box */}
-              {priorityPreview && (
-                <div className="rounded-xl border border-zinc-200 bg-white p-3.5 shadow-sm dark:border-zinc-800 dark:bg-zinc-900">
+              {preview && (
+                <div
+                  className="rounded-lg border p-4"
+                  style={{ borderColor: preview.borderColor, backgroundColor: preview.softBg }}
+                >
                   <div className="flex items-center gap-2">
-                    <span className="size-3 rounded-full shrink-0" style={{ backgroundColor: priorityPreview.dotColor }} />
-                    <span className="text-xs font-bold text-zinc-900 dark:text-zinc-100">
-                      Resultado: {priorityPreview.priority}
+                    <span
+                      className="size-2 shrink-0 rounded-full"
+                      style={{ backgroundColor: preview.color }}
+                    />
+                    <span className="text-sm font-semibold" style={{ color: preview.color }}>
+                      {preview.priority}
                     </span>
-                    <span className="text-xs text-muted-foreground">— {priorityPreview.interpretation}</span>
+                    <span className="text-sm text-muted-foreground">
+                      · {preview.interpretation}
+                    </span>
                   </div>
-                  <p className="mt-2 text-xs text-zinc-600 dark:text-zinc-400 italic">
-                    💡 {priorityPreview.recommendation}
+                  <p className="mt-1.5 text-sm leading-relaxed text-foreground/80">
+                    {preview.action}
                   </p>
                 </div>
               )}
+
+              {missingAnswers && (
+                <p className="text-sm text-muted-foreground">
+                  Responde las tres preguntas para calcular la prioridad de este grupo.
+                </p>
+              )}
             </div>
           )}
+        </div>
+      </div>
 
-          {/* If No is selected */}
-          {currentAnswer.isRelated === false && (
-            <div className="rounded-xl border border-zinc-200 bg-zinc-50 p-4 text-center text-xs text-muted-foreground dark:border-zinc-800 dark:bg-zinc-900">
-              Has marcado que este stakeholder no tiene relación activa con tu emprendimiento. Puedes avanzar al siguiente.
-            </div>
+      {/* Ayuda para quienes usan la herramienta por primera vez */}
+      <div className="mt-4">
+        <button
+          type="button"
+          onClick={() => setShowHelp((prev) => !prev)}
+          aria-expanded={showHelp}
+          className="flex items-center gap-1.5 text-sm text-muted-foreground transition-colors hover:text-foreground"
+        >
+          <ChevronDown
+            className={`size-3.5 transition-transform ${showHelp ? "rotate-180" : ""}`}
+          />
+          ¿Cómo respondo estas preguntas?
+        </button>
+
+        {showHelp && (
+          <div className="reveal mt-3 space-y-2 rounded-lg border border-border bg-muted/50 p-4 text-sm leading-relaxed text-muted-foreground">
+            <p>
+              <strong className="font-medium text-foreground">Importancia</strong> es cuánto
+              necesitas a ese grupo para que tu negocio funcione.
+            </p>
+            <p>
+              <strong className="font-medium text-foreground">Impacto sobre tu negocio</strong> es
+              cuánto puede afectarte lo que ese grupo haga o decida.
+            </p>
+            <p>
+              <strong className="font-medium text-foreground">Impacto de tu negocio</strong> es
+              cuánto le afecta a ese grupo lo que tú haces.
+            </p>
+            <p>No hay respuestas correctas: responde con lo que ves hoy en tu negocio.</p>
+          </div>
+        )}
+      </div>
+
+      <div className="mt-6">
+        <button
+          type="button"
+          onClick={handleAddCustom}
+          className="flex items-center gap-1.5 text-sm text-muted-foreground transition-colors hover:text-foreground"
+        >
+          <Plus className="size-3.5" />
+          Agregar otro grupo de interés
+        </button>
+      </div>
+
+      {/* Navegación */}
+      <nav className="fixed inset-x-0 bottom-0 z-30 border-t border-border bg-background/95 p-3 backdrop-blur-md sm:static sm:mt-8 sm:border-0 sm:bg-transparent sm:p-0 sm:backdrop-blur-none">
+        <div className="mx-auto flex max-w-2xl items-center gap-3">
+          <Button
+            variant="outline"
+            size="xl"
+            onClick={() => goTo(currentIndex - 1)}
+            disabled={currentIndex === 0}
+            className="shrink-0"
+            aria-label="Grupo anterior"
+          >
+            <ArrowLeft className="size-4" />
+            <span className="hidden sm:inline">Anterior</span>
+          </Button>
+
+          {isLast ? (
+            <Button
+              size="xl"
+              onClick={() => onFinish(Object.values(answersMap))}
+              disabled={evaluatedCount === 0}
+              className="flex-1"
+            >
+              Ver mis resultados
+              <ArrowRight className="size-4" />
+            </Button>
+          ) : (
+            <Button size="xl" onClick={() => goTo(currentIndex + 1)} className="flex-1">
+              Siguiente
+              <ArrowRight className="size-4" />
+            </Button>
           )}
-        </CardContent>
+        </div>
 
-        {/* Wizard Footer Controls */}
-        <CardFooter className="flex flex-col sm:flex-row items-center justify-between gap-3 border-t border-zinc-100 bg-zinc-50/60 p-4 sm:p-5 dark:border-zinc-800 dark:bg-zinc-900/60">
-          <div className="flex w-full sm:w-auto items-center justify-between sm:justify-start gap-2">
-            <Button
+        {evaluatedCount > 0 && !isLast && (
+          <div className="mx-auto mt-2 flex max-w-2xl justify-center sm:mt-3">
+            <button
               type="button"
-              variant="outline"
-              size="sm"
-              disabled={currentIndex === 0}
-              onClick={() => setCurrentIndex((prev) => Math.max(0, prev - 1))}
-              className="text-xs font-medium"
+              onClick={() => onFinish(Object.values(answersMap))}
+              className="text-sm text-muted-foreground underline underline-offset-4 hover:text-foreground"
             >
-              <ArrowLeft className="size-3.5 mr-1" />
-              Anterior
-            </Button>
-
-            <Button
-              type="button"
-              variant="ghost"
-              size="sm"
-              onClick={handleAddCustomStakeholder}
-              className="text-xs text-emerald-700 hover:bg-emerald-50 dark:text-emerald-400 dark:hover:bg-emerald-950"
-            >
-              <PlusCircle className="size-3.5 mr-1" />
-              + Agregar otro
-            </Button>
+              Terminar ahora y ver resultados
+            </button>
           </div>
-
-          <div className="flex w-full sm:w-auto items-center justify-end gap-2">
-            {currentIndex < stakeholderList.length - 1 ? (
-              <Button
-                type="button"
-                onClick={() => setCurrentIndex((prev) => Math.min(stakeholderList.length - 1, prev + 1))}
-                className="w-full sm:w-auto bg-emerald-600 text-white hover:bg-emerald-700 text-xs font-semibold px-5"
-              >
-                <span>Siguiente</span>
-                <ArrowRight className="size-3.5 ml-1" />
-              </Button>
-            ) : (
-              <Button
-                type="button"
-                onClick={handleFinishWizard}
-                className="w-full sm:w-auto bg-gradient-to-r from-emerald-600 to-teal-600 text-white hover:from-emerald-700 hover:to-teal-700 text-xs font-bold shadow-md px-5"
-              >
-                <span>Finalizar y Ver Resultados 🎉</span>
-              </Button>
-            )}
-          </div>
-        </CardFooter>
-      </Card>
+        )}
+      </nav>
     </div>
+  );
+}
+
+interface OptionGroupProps {
+  label: string;
+  name: string;
+  options: { value: string; label: string; hint: string }[];
+  value: string | null;
+  onSelect: (value: string) => void;
+}
+
+function OptionGroup({ label, name, options, value, onSelect }: OptionGroupProps) {
+  return (
+    <fieldset>
+      <legend className="text-base font-medium leading-snug text-balance">{label}</legend>
+
+      <div className="mt-3 grid gap-2">
+        {options.map((option) => {
+          const selected = value === option.value;
+          return (
+            <button
+              key={`${name}-${option.value}`}
+              type="button"
+              onClick={() => onSelect(option.value)}
+              aria-pressed={selected}
+              className={`flex min-h-14 items-center gap-3 rounded-lg border px-4 py-3 text-left transition-colors ${
+                selected
+                  ? "border-brand bg-brand-soft"
+                  : "border-border bg-card hover:border-foreground/25"
+              }`}
+            >
+              <span
+                className={`flex size-5 shrink-0 items-center justify-center rounded-full border transition-colors ${
+                  selected ? "border-brand bg-brand text-white" : "border-foreground/25"
+                }`}
+              >
+                {selected && <Check className="size-3" strokeWidth={3} />}
+              </span>
+
+              <span className="min-w-0">
+                <span
+                  className={`block text-sm ${selected ? "font-semibold text-brand-strong" : "font-medium"}`}
+                >
+                  {option.label}
+                </span>
+                <span className="block text-sm text-muted-foreground">{option.hint}</span>
+              </span>
+            </button>
+          );
+        })}
+      </div>
+    </fieldset>
   );
 }

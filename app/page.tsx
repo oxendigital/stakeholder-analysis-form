@@ -1,177 +1,154 @@
 "use client";
 
-import React, { useState, useEffect } from "react";
+import React, { useCallback, useEffect, useState } from "react";
 import { Navbar } from "@/components/navbar";
 import { VentureInitialForm, VentureData } from "@/components/venture-initial-form";
 import { StakeholderWizard, StakeholderAnswer } from "@/components/stakeholder-wizard";
 import { ResultsDashboard } from "@/components/results-dashboard";
 import { SavedEvaluationsModal } from "@/components/saved-evaluations-modal";
 import { DEMO_VENTURE, DEFAULT_STAKEHOLDERS } from "@/lib/stakeholders-data";
-import { Leaf, Heart, Shield, Globe } from "lucide-react";
+import { ImportanceLevel, ImpactLevel } from "@/lib/matrix-calculations";
 
-const STORAGE_KEY_VENTURE = "emprende_clima_venture";
-const STORAGE_KEY_ANSWERS = "emprende_clima_answers";
-const STORAGE_KEY_STEP = "emprende_clima_step";
+const STORAGE_KEY = "emprende_clima_stakeholders";
 
-export default function Home() {
-  const [step, setStep] = useState<number>(1);
-  const [isHistoryOpen, setIsHistoryOpen] = useState<boolean>(false);
+interface Session {
+  venture: VentureData;
+  answers: StakeholderAnswer[];
+  step: number;
+}
 
-  const [venture, setVenture] = useState<VentureData>({
+function emptyVenture(): VentureData {
+  return {
     ventureName: "",
     entrepreneurName: "",
     industry: "",
     date: new Date().toISOString().split("T")[0],
     notes: "",
-  });
+  };
+}
 
-  const [answers, setAnswers] = useState<StakeholderAnswer[]>([]);
+function emptySession(): Session {
+  return { venture: emptyVenture(), answers: [], step: 1 };
+}
 
-  // Load from local storage on first mount
+/** Lee la sesión anterior del navegador, descartando lo que esté incompleto. */
+function readStoredSession(): Session | null {
+  try {
+    const raw = localStorage.getItem(STORAGE_KEY);
+    if (!raw) return null;
+
+    const stored = JSON.parse(raw) as Partial<Session>;
+    const venture = { ...emptyVenture(), ...(stored.venture ?? {}) };
+    const answers = Array.isArray(stored.answers) ? stored.answers : [];
+
+    // Sólo se retoma un paso avanzado si hay datos que lo respalden.
+    let step = 1;
+    if (stored.step === 2 && venture.ventureName) step = 2;
+    if (stored.step === 3 && answers.length > 0) step = 3;
+
+    return { venture, answers, step };
+  } catch (error) {
+    console.error("No se pudo recuperar la sesión guardada:", error);
+    return null;
+  }
+}
+
+export default function Home() {
+  const [session, setSession] = useState<Session>(emptySession);
+  const [isHistoryOpen, setIsHistoryOpen] = useState(false);
+
+  // `isRestored` es estado y no una referencia a propósito: si fuera una
+  // referencia, el efecto que guarda alcanzaría a escribir la sesión vacía del
+  // primer render y borraría lo que el usuario tenía guardado.
+  const [isRestored, setIsRestored] = useState(false);
+
   useEffect(() => {
-    try {
-      const savedVenture = localStorage.getItem(STORAGE_KEY_VENTURE);
-      const savedAnswers = localStorage.getItem(STORAGE_KEY_ANSWERS);
-      const savedStep = localStorage.getItem(STORAGE_KEY_STEP);
-
-      if (savedVenture) {
-        setVenture(JSON.parse(savedVenture));
-      }
-      if (savedAnswers) {
-        setAnswers(JSON.parse(savedAnswers));
-      }
-      if (savedStep) {
-        setStep(Number(savedStep));
-      }
-    } catch (e) {
-      console.error("Local storage error:", e);
-    }
+    const restored = readStoredSession();
+    // `localStorage` no existe durante el render en el servidor: recuperar la
+    // sesión sólo es posible al montar, y ocurre una única vez.
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    if (restored) setSession(restored);
+    setIsRestored(true);
   }, []);
 
-  // Save to localStorage when state changes
   useEffect(() => {
+    if (!isRestored) return;
     try {
-      if (venture.ventureName) {
-        localStorage.setItem(STORAGE_KEY_VENTURE, JSON.stringify(venture));
-      }
-      if (answers.length > 0) {
-        localStorage.setItem(STORAGE_KEY_ANSWERS, JSON.stringify(answers));
-      }
-      localStorage.setItem(STORAGE_KEY_STEP, String(step));
-    } catch (e) {
-      console.error(e);
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(session));
+    } catch (error) {
+      console.error("No se pudo guardar la sesión:", error);
     }
-  }, [venture, answers, step]);
+  }, [session, isRestored]);
 
-  // Demo loader
-  const handleLoadDemo = () => {
-    const demoVenture: VentureData = {
-      id: "demo_ecopack",
-      ventureName: DEMO_VENTURE.ventureName,
-      entrepreneurName: DEMO_VENTURE.entrepreneurName,
-      industry: DEMO_VENTURE.industry,
-      date: DEMO_VENTURE.date,
-      notes: DEMO_VENTURE.notes,
-    };
+  const { venture, answers, step } = session;
 
-    const demoAnswers: StakeholderAnswer[] = DEFAULT_STAKEHOLDERS.map((st) => {
-      const match = DEMO_VENTURE.responses.find((r) => r.stakeholderKey === st.id);
-      if (match) {
-        return {
-          stakeholderKey: st.id,
-          stakeholderName: st.name,
-          category: st.category,
-          tripleImpactDimension: st.tripleImpactDimension,
-          isCustom: false,
-          isRelated: match.isRelated,
-          importance: match.importance as any,
-          impactOnVenture: match.impactOnVenture as any,
-          impactOfVenture: match.impactOfVenture as any,
-          notes: match.notes,
-        };
-      }
+  const goToStep = useCallback((next: number) => {
+    setSession((prev) => ({ ...prev, step: next }));
+    window.scrollTo({ top: 0, behavior: "smooth" });
+  }, []);
+
+  const handleLoadDemo = useCallback(() => {
+    const demoAnswers: StakeholderAnswer[] = DEFAULT_STAKEHOLDERS.map((stakeholder) => {
+      const response = DEMO_VENTURE.responses.find(
+        (r) => r.stakeholderKey === stakeholder.id
+      );
+
       return {
-        stakeholderKey: st.id,
-        stakeholderName: st.name,
-        category: st.category,
-        tripleImpactDimension: st.tripleImpactDimension,
+        stakeholderKey: stakeholder.id,
+        stakeholderName: stakeholder.name,
+        category: stakeholder.category,
+        tripleImpactDimension: stakeholder.tripleImpactDimension,
         isCustom: false,
-        isRelated: false,
-        importance: null,
-        impactOnVenture: null,
-        impactOfVenture: null,
-        notes: "",
+        isRelated: response ? response.isRelated : false,
+        importance: (response?.importance as ImportanceLevel) ?? null,
+        impactOnVenture: (response?.impactOnVenture as ImpactLevel) ?? null,
+        impactOfVenture: (response?.impactOfVenture as ImpactLevel) ?? null,
+        notes: response?.notes ?? "",
       };
     });
 
-    setVenture(demoVenture);
-    setAnswers(demoAnswers);
-    setStep(3); // Jump directly to results for immediate presentation inspection
-  };
-
-  const handleReset = () => {
-    if (confirm("¿Estás seguro de que deseas reiniciar el análisis actual?")) {
-      localStorage.removeItem(STORAGE_KEY_VENTURE);
-      localStorage.removeItem(STORAGE_KEY_ANSWERS);
-      localStorage.removeItem(STORAGE_KEY_STEP);
-      setVenture({
-        ventureName: "",
-        entrepreneurName: "",
-        industry: "",
-        date: new Date().toISOString().split("T")[0],
-        notes: "",
-      });
-      setAnswers([]);
-      setStep(1);
-    }
-  };
-
-  const handleCompleteInitial = (data: VentureData) => {
-    setVenture(data);
-    setStep(2);
+    setSession({
+      venture: {
+        ventureName: DEMO_VENTURE.ventureName,
+        entrepreneurName: DEMO_VENTURE.entrepreneurName,
+        industry: DEMO_VENTURE.industry,
+        date: DEMO_VENTURE.date,
+        notes: DEMO_VENTURE.notes,
+      },
+      answers: demoAnswers,
+      step: 3,
+    });
     window.scrollTo({ top: 0, behavior: "smooth" });
-  };
+  }, []);
 
-  const handleSaveAnswers = (newAnswers: StakeholderAnswer[]) => {
-    setAnswers(newAnswers);
-  };
-
-  const handleFinishWizard = (finalAnswers: StakeholderAnswer[]) => {
-    setAnswers(finalAnswers);
-    setStep(3);
+  const handleReset = useCallback(() => {
+    if (!confirm("Se borrarán las respuestas de este análisis. ¿Continuar?")) return;
+    localStorage.removeItem(STORAGE_KEY);
+    setSession(emptySession());
     window.scrollTo({ top: 0, behavior: "smooth" });
-  };
-
-  const handleLoadSavedEvaluation = (
-    savedVenture: VentureData,
-    savedAnswers: StakeholderAnswer[]
-  ) => {
-    setVenture(savedVenture);
-    setAnswers(savedAnswers);
-    setStep(3);
-    window.scrollTo({ top: 0, behavior: "smooth" });
-  };
+  }, []);
 
   const hasActiveData = Boolean(venture.ventureName || answers.length > 0);
 
   return (
-    <div className="min-h-screen flex flex-col bg-zinc-50/60 font-sans text-zinc-900 dark:bg-zinc-950 dark:text-zinc-100">
-      {/* Top Navbar */}
+    <div className="flex min-h-screen flex-col">
       <Navbar
         onLoadDemo={handleLoadDemo}
         onOpenHistory={() => setIsHistoryOpen(true)}
         onReset={handleReset}
         hasActiveData={hasActiveData}
         currentStep={step}
-        onNavigateStep={(s) => setStep(s)}
+        onNavigateStep={goToStep}
       />
 
-      {/* Main Page Container */}
-      <main className="flex-1 px-4 py-6 sm:px-6 sm:py-8 lg:px-8 max-w-7xl mx-auto w-full">
+      <main className="mx-auto w-full max-w-6xl flex-1 px-4 pb-16 sm:px-6">
         {step === 1 && (
           <VentureInitialForm
             initialData={venture}
-            onComplete={handleCompleteInitial}
+            onComplete={(data) => {
+              setSession((prev) => ({ ...prev, venture: data, step: 2 }));
+              window.scrollTo({ top: 0, behavior: "smooth" });
+            }}
             onLoadDemo={handleLoadDemo}
           />
         )}
@@ -179,9 +156,12 @@ export default function Home() {
         {step === 2 && (
           <StakeholderWizard
             answers={answers}
-            onSaveAnswers={handleSaveAnswers}
-            onFinish={handleFinishWizard}
-            onBackToProfile={() => setStep(1)}
+            onSaveAnswers={(next) => setSession((prev) => ({ ...prev, answers: next }))}
+            onFinish={(finalAnswers) => {
+              setSession((prev) => ({ ...prev, answers: finalAnswers, step: 3 }));
+              window.scrollTo({ top: 0, behavior: "smooth" });
+            }}
+            onBackToProfile={() => goToStep(1)}
             ventureName={venture.ventureName}
           />
         )}
@@ -190,43 +170,33 @@ export default function Home() {
           <ResultsDashboard
             venture={venture}
             answers={answers}
-            onBackToWizard={() => setStep(2)}
-            onSaveDbSuccess={(evalId) => {
-              setVenture((prev) => ({ ...prev, id: evalId }));
-            }}
+            onBackToWizard={() => goToStep(2)}
+            onSaveDbSuccess={(evalId) =>
+              setSession((prev) => ({
+                ...prev,
+                venture: { ...prev.venture, id: evalId },
+              }))
+            }
           />
         )}
       </main>
 
-      {/* Footer */}
-      <footer className="border-t border-zinc-200/80 bg-white/60 py-6 text-center text-xs text-muted-foreground dark:border-zinc-800/80 dark:bg-zinc-950/60 print:hidden">
-        <div className="mx-auto max-w-7xl px-4 flex flex-col sm:flex-row items-center justify-between gap-3">
-          <div className="flex items-center gap-2">
-            <div className="flex size-5 items-center justify-center rounded-md bg-emerald-600 text-white">
-              <Leaf className="size-3" />
-            </div>
-            <span className="font-semibold text-zinc-800 dark:text-zinc-200">
-              Emprende Clima
-            </span>
-            <span>— Impulsando la sostenibilidad y el triple impacto</span>
-          </div>
-
-          <div className="flex items-center gap-4 text-zinc-500">
-            <span>Matriz 2D de Stakeholders</span>
-            <span>·</span>
-            <span>Turso DB & Drizzle ORM</span>
-            <span>·</span>
-            <span>PDF Export</span>
-          </div>
+      <footer className="border-t border-border py-6 print:hidden">
+        <div className="mx-auto flex max-w-6xl flex-col gap-1 px-4 text-sm text-muted-foreground sm:flex-row sm:items-center sm:justify-between sm:px-6">
+          <span>Emprende Clima · Herramienta para emprendedores</span>
+          <span>Tus respuestas se guardan en este dispositivo.</span>
         </div>
       </footer>
 
-      {/* History Modal */}
-      <SavedEvaluationsModal
-        isOpen={isHistoryOpen}
-        onClose={() => setIsHistoryOpen(false)}
-        onLoadEvaluation={handleLoadSavedEvaluation}
-      />
+      {isHistoryOpen && (
+        <SavedEvaluationsModal
+          onClose={() => setIsHistoryOpen(false)}
+          onLoadEvaluation={(savedVenture, savedAnswers) => {
+            setSession({ venture: savedVenture, answers: savedAnswers, step: 3 });
+            window.scrollTo({ top: 0, behavior: "smooth" });
+          }}
+        />
+      )}
     </div>
   );
 }
