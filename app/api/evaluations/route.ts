@@ -4,6 +4,20 @@ import { evaluations, stakeholderResponses } from "@/lib/db/schema";
 import { desc, eq } from "drizzle-orm";
 import { calculateStakeholderPriority } from "@/lib/matrix-calculations";
 
+interface StakeholderResponsePayload {
+  id?: string;
+  stakeholderKey?: string;
+  stakeholderName?: string;
+  category?: string;
+  tripleImpactDimension?: string;
+  isCustom?: boolean;
+  isRelated?: boolean;
+  importance?: string | null;
+  impactOnVenture?: string | null;
+  impactOfVenture?: string | null;
+  notes?: string;
+}
+
 export async function GET() {
   try {
     await ensureDbInitialized();
@@ -83,7 +97,7 @@ export async function POST(req: NextRequest) {
 
     // Insert responses
     if (Array.isArray(responses) && responses.length > 0) {
-      const responseRows = responses.map((r: any, idx: number) => {
+      const responseRows = responses.map((r: StakeholderResponsePayload, idx: number) => {
         const priorityCalc = calculateStakeholderPriority(
           r.isRelated ? r.importance : null,
           r.isRelated ? r.impactOnVenture : null,

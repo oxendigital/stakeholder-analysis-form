@@ -1,54 +1,63 @@
+export type StakeholderCategory =
+  | "Cadena de valor"
+  | "Equipo y propiedad"
+  | "Regulación y financiamiento"
+  | "Comunidad"
+  | "Entorno natural"
+  | "Mercado"
+  | "Otro";
+
+export type TripleImpactDimension = "Personas" | "Planeta" | "Prosperidad" | "Transversal";
+
 export interface DefaultStakeholderItem {
   id: string;
   name: string;
-  category: "Cadena de Valor" | "Interno" | "Gobernanza y Regulación" | "Comunidad y Sociedad" | "Planeta y Ecosistema" | "Mercado" | "General";
-  tripleImpactDimension: "Personas" | "Planeta" | "Prosperidad" | "Transversal";
+  category: StakeholderCategory;
+  tripleImpactDimension: TripleImpactDimension;
   iconName: string;
+  /** Una frase en lenguaje simple: quiénes son. */
   shortDescription: string;
+  /** Ejemplos concretos para que el emprendedor se ubique rápido. */
   examples: string[];
-  climateContext: string;
 }
 
+/** Los 14 grupos de interés definidos en el requerimiento, en ese mismo orden. */
 export const DEFAULT_STAKEHOLDERS: DefaultStakeholderItem[] = [
   {
     id: "clientes",
     name: "Clientes",
-    category: "Cadena de Valor",
+    category: "Cadena de valor",
     tripleImpactDimension: "Personas",
     iconName: "Users",
-    shortDescription: "Personas o empresas que compran o utilizan tus productos o servicios sostenibles.",
-    examples: ["Consumidores finales", "Empresas B2B", "Distribuidores", "Compradores públicos"],
-    climateContext: "Cada vez valoran más la trazabilidad ecológica, el ecodiseño y el compromiso climático."
+    shortDescription: "Las personas o empresas que compran o usan lo que ofreces.",
+    examples: ["Consumidores finales", "Otras empresas", "Distribuidores"],
   },
   {
     id: "trabajadores",
     name: "Trabajadores y colaboradores",
-    category: "Interno",
+    category: "Equipo y propiedad",
     tripleImpactDimension: "Personas",
     iconName: "Briefcase",
-    shortDescription: "Equipo humano que hace posible la operación diaria y el crecimiento del proyecto.",
-    examples: ["Empleados contratados", "Practicantes", "Asesores técnicos", "Contratistas regulares"],
-    climateContext: "Clave para la cultura de sostenibilidad interna, seguridad laboral y sentido de propósito."
+    shortDescription: "Quienes trabajan contigo en el día a día del negocio.",
+    examples: ["Empleados", "Practicantes", "Personas que contratas por servicio"],
   },
   {
     id: "proveedores",
     name: "Proveedores",
-    category: "Cadena de Valor",
+    category: "Cadena de valor",
     tripleImpactDimension: "Prosperidad",
     iconName: "Truck",
-    shortDescription: "Quienes suministran materias primas, insumos, maquinaria, tecnología o servicios logísticos.",
-    examples: ["Productores locales", "Distribuidores de insumos", "Transportistas", "Servicios de nube"],
-    climateContext: "Determinan gran parte de la huella de carbono de alcance 3 y la circularidad de insumos."
+    shortDescription: "Quienes te venden insumos, materiales, equipos o servicios.",
+    examples: ["Productores locales", "Distribuidores", "Transportistas"],
   },
   {
     id: "socios",
     name: "Socios o propietarios",
-    category: "Interno",
+    category: "Equipo y propiedad",
     tripleImpactDimension: "Prosperidad",
     iconName: "Handshake",
-    shortDescription: "Cofundadores, accionistas, inversores o miembros del directorio del negocio.",
-    examples: ["Socios fundadores", "Inversionistas ángel", "Fondos de capital", "Familiares socios"],
-    climateContext: "Definen la visión estratégica, alineación de valores y reinversión de utilidades en impacto."
+    shortDescription: "Las personas dueñas del negocio o que invirtieron en él.",
+    examples: ["Socios fundadores", "Inversionistas", "Familiares que aportaron capital"],
   },
   {
     id: "competidores",
@@ -56,69 +65,62 @@ export const DEFAULT_STAKEHOLDERS: DefaultStakeholderItem[] = [
     category: "Mercado",
     tripleImpactDimension: "Prosperidad",
     iconName: "TrendingUp",
-    shortDescription: "Otras empresas u opciones que ofrecen soluciones parecidas o alternativas en tu mercado.",
-    examples: ["Competidores directos", "Sustitutos tradicionales no sostenibles", "Nuevos entrantes"],
-    climateContext: "Permiten benchmarking, identificar ventajas competitivas verdes y fomentar la innovación."
+    shortDescription: "Otros negocios que ofrecen algo parecido o que te reemplazan.",
+    examples: ["Competencia directa", "Alternativas tradicionales", "Negocios nuevos"],
   },
   {
     id: "bancos_financieras",
     name: "Bancos e instituciones financieras",
-    category: "Gobernanza y Regulación",
+    category: "Regulación y financiamiento",
     tripleImpactDimension: "Prosperidad",
     iconName: "Landmark",
-    shortDescription: "Entidades que otorgan financiamiento, créditos verdes, cuentas o subsidios de fomento.",
-    examples: ["Banca comercial", "Corfo / Sercotec / Fondos", "Cooperativas de ahorro", "Fintechs verdes"],
-    climateContext: "Cada vez exigen mayores criterios ESG y criterios climáticos para tasas preferenciales."
+    shortDescription: "Quienes te prestan dinero o financian el crecimiento del negocio.",
+    examples: ["Bancos", "Cooperativas", "Fondos públicos de fomento"],
   },
   {
     id: "estado_municipalidad",
     name: "Estado y municipalidad",
-    category: "Gobernanza y Regulación",
+    category: "Regulación y financiamiento",
     tripleImpactDimension: "Personas",
     iconName: "Building2",
-    shortDescription: "Organismos públicos locales y nacionales que otorgan patentes, permisos o incentivos.",
-    examples: ["Municipalidad local", "Gobierno Regional", "Ministerios sectoriales", "Servicios de rentas"],
-    climateContext: "Impulsan políticas de compras públicas sustentables, reciclaje comunal y zonas de desarrollo."
+    shortDescription: "Los organismos públicos que dan permisos, patentes o apoyos.",
+    examples: ["Municipalidad", "Gobierno regional", "Ministerios"],
   },
   {
     id: "organismos_reguladores",
     name: "Organismos reguladores",
-    category: "Gobernanza y Regulación",
+    category: "Regulación y financiamiento",
     tripleImpactDimension: "Transversal",
     iconName: "ShieldAlert",
-    shortDescription: "Entidades que fiscalizan el cumplimiento normativo ambiental, sanitario, laboral y tributario.",
-    examples: ["Superintendencia del Medio Ambiente", "Seremi de Salud", "Dirección del Trabajo", "SII"],
-    climateContext: "Aseguran cumplimiento de Ley REP, normas de emisiones, residuos peligrosos y condiciones laborales."
+    shortDescription: "Los que fiscalizan que cumplas las normas de tu actividad.",
+    examples: ["Salud", "Medio ambiente", "Trabajo", "Impuestos"],
   },
   {
     id: "comunidad_vecinos",
     name: "Comunidad y vecinos",
-    category: "Comunidad y Sociedad",
+    category: "Comunidad",
     tripleImpactDimension: "Personas",
     iconName: "Home",
-    shortDescription: "Personas, barrios y familias que habitan en el entorno donde operas o produces.",
-    examples: ["Juntas de vecinos", "Comunidades aledañas", "Comercio de barrio", "Poblaciones locales"],
-    climateContext: "Otorgan la licencia social para operar y son los primeros receptores de externalidades."
+    shortDescription: "Las personas que viven o trabajan cerca de donde operas.",
+    examples: ["Junta de vecinos", "Barrio", "Comercio cercano"],
   },
   {
     id: "organizaciones_sociales",
     name: "Organizaciones sociales",
-    category: "Comunidad y Sociedad",
+    category: "Comunidad",
     tripleImpactDimension: "Personas",
     iconName: "HeartHandshake",
-    shortDescription: "ONGs, fundaciones comunitarias, colectivos ambientales y agrupaciones ciudadanas.",
-    examples: ["ONGs ambientales", "Fundaciones sociales", "Colectivos de voluntariado", "Mesas de trabajo"],
-    climateContext: "Potenciales aliados estratégicos para proyectos de impacto territorial y validación social."
+    shortDescription: "Fundaciones, ONG y agrupaciones con las que puedes aliarte.",
+    examples: ["ONG", "Fundaciones", "Agrupaciones de voluntariado"],
   },
   {
     id: "instituciones_educacionales",
     name: "Instituciones educacionales",
-    category: "Comunidad y Sociedad",
+    category: "Comunidad",
     tripleImpactDimension: "Transversal",
     iconName: "GraduationCap",
-    shortDescription: "Universidades, institutos técnicos, centros de I+D y colegios de tu ecosistema.",
-    examples: ["Universidades regionales", "Centros de I+D", "Institutos profesionales", "Escuelas técnicas"],
-    climateContext: "Fuente de talento, transferencia tecnológica, tesistas y laboratorios de pruebas."
+    shortDescription: "Universidades, institutos y colegios de tu zona.",
+    examples: ["Universidades", "Institutos técnicos", "Liceos"],
   },
   {
     id: "asociaciones_gremiales",
@@ -126,155 +128,149 @@ export const DEFAULT_STAKEHOLDERS: DefaultStakeholderItem[] = [
     category: "Mercado",
     tripleImpactDimension: "Prosperidad",
     iconName: "Network",
-    shortDescription: "Cámaras de comercio, asociaciones de emprendedores y redes de economía circular.",
-    examples: ["Cámara Regional de Comercio", "Asociación de Empresas B", "Redes gremiales de sustentabilidad"],
-    climateContext: "Facilitan networking, incidencia gremial, compras conjuntas y visibilidad sectorial."
+    shortDescription: "Redes y cámaras que agrupan a negocios como el tuyo.",
+    examples: ["Cámara de comercio", "Asociación de emprendedores", "Redes del rubro"],
   },
   {
     id: "medioambiente",
     name: "Medioambiente",
-    category: "Planeta y Ecosistema",
+    category: "Entorno natural",
     tripleImpactDimension: "Planeta",
     iconName: "Leaf",
-    shortDescription: "Los ecosistemas naturales, recursos hídricos, calidad del aire, suelo y biodiversidad.",
-    examples: ["Cuenca hídrica local", "Flora y fauna nativa", "Calidad del aire / emisiones", "Gestión de residuos"],
-    climateContext: "El stakeholder silencioso fundamental. Tu emprendimiento debe protegerlo y regenerarlo."
+    shortDescription: "El agua, el aire, el suelo y la naturaleza donde operas.",
+    examples: ["Agua", "Aire", "Suelo", "Flora y fauna"],
   },
   {
     id: "otros",
     name: "Otros",
-    category: "General",
+    category: "Otro",
     tripleImpactDimension: "Transversal",
     iconName: "PlusCircle",
-    shortDescription: "Cualquier otro actor relevante específico para tu modelo de negocio particular.",
-    examples: ["Medios de comunicación", "Influencers", "Líderes de opinión", "Aliados tecnológicos"],
-    climateContext: "Personaliza según las particularidades de tu sector o territorio."
-  }
+    shortDescription:
+      "¿Hay alguien más importante que no esté en la lista? Escribe su nombre aquí.",
+    examples: ["Medios de comunicación", "Líderes locales", "Aliados tecnológicos"],
+  },
 ];
 
+/** Ejemplo listo para mostrar en la presentación. */
 export const DEMO_VENTURE = {
-  ventureName: "EcoPack Circular SpA",
+  ventureName: "EcoPack Circular",
   entrepreneurName: "Valentina Henríquez",
-  industry: "Reciclaje & Economía Circular",
+  industry: "Reciclaje y economía circular",
   date: new Date().toISOString().split("T")[0],
-  notes: "Producción de embalajes biodegradables a partir de descartes agrícolas locales.",
+  notes: "Envases biodegradables hechos con descartes agrícolas de la zona.",
   responses: [
     {
       stakeholderKey: "clientes",
-      stakeholderName: "Clientes",
       isRelated: true,
       importance: "Muy importante",
       impactOnVenture: "Alto impacto",
       impactOfVenture: "Alto impacto",
-      notes: "Empresas de e-commerce y marcas de alimentos que buscan empaques compostables."
+      notes: "Marcas de alimentos y tiendas online que buscan envases compostables.",
     },
     {
       stakeholderKey: "trabajadores",
-      stakeholderName: "Trabajadores y colaboradores",
       isRelated: true,
       importance: "Muy importante",
       impactOnVenture: "Alto impacto",
       impactOfVenture: "Alto impacto",
-      notes: "8 operarios de planta y 3 profesionales de diseño industrial."
+      notes: "8 personas en planta y 3 en diseño.",
     },
     {
       stakeholderKey: "proveedores",
-      stakeholderName: "Proveedores",
       isRelated: true,
       importance: "Muy importante",
       impactOnVenture: "Alto impacto",
       impactOfVenture: "Impacto medio",
-      notes: "Agricultores locales proveedores de rastrojo y cáscaras."
+      notes: "Agricultores locales que aportan rastrojo y cáscaras.",
     },
     {
       stakeholderKey: "socios",
-      stakeholderName: "Socios o propietarios",
       isRelated: true,
       importance: "Muy importante",
       impactOnVenture: "Impacto medio",
       impactOfVenture: "Alto impacto",
-      notes: "2 socias fundadoras y 1 inversor ángel."
+      notes: "Dos socias fundadoras y un inversionista.",
     },
     {
       stakeholderKey: "competidores",
-      stakeholderName: "Competidores",
       isRelated: true,
       importance: "Medianamente importante",
       impactOnVenture: "Impacto medio",
       impactOfVenture: "Bajo impacto",
-      notes: "Fabricantes tradicionales de plumavit y cartón reciclado."
+      notes: "Fabricantes de envases plásticos y de cartón.",
     },
     {
       stakeholderKey: "bancos_financieras",
-      stakeholderName: "Bancos e instituciones financieras",
       isRelated: true,
       importance: "Muy importante",
       impactOnVenture: "Alto impacto",
       impactOfVenture: "Impacto medio",
-      notes: "Postulando a crédito verde Corfo y fondos Semilla Expande."
+      notes: "Postulación a crédito verde y fondos de fomento.",
     },
     {
       stakeholderKey: "estado_municipalidad",
-      stakeholderName: "Estado y municipalidad",
       isRelated: true,
       importance: "Medianamente importante",
       impactOnVenture: "Alto impacto",
       impactOfVenture: "Impacto medio",
-      notes: "Permisos de funcionamiento y alianzas con la oficina de medio ambiente municipal."
+      notes: "Permisos de funcionamiento y trabajo con la oficina de medio ambiente.",
     },
     {
       stakeholderKey: "organismos_reguladores",
-      stakeholderName: "Organismos reguladores",
       isRelated: true,
       importance: "Muy importante",
       impactOnVenture: "Alto impacto",
       impactOfVenture: "Bajo impacto",
-      notes: "Cumplimiento de resolución sanitaria y Ley REP de envases."
+      notes: "Resolución sanitaria y normativa de envases.",
     },
     {
       stakeholderKey: "comunidad_vecinos",
-      stakeholderName: "Comunidad y vecinos",
       isRelated: true,
       importance: "Medianamente importante",
       impactOnVenture: "Impacto medio",
       impactOfVenture: "Alto impacto",
-      notes: "Vecindario contiguo al centro de acopio; cero olores y baja emisión acústica."
+      notes: "Vecinos del centro de acopio: sin olores ni ruido.",
     },
     {
       stakeholderKey: "organizaciones_sociales",
-      stakeholderName: "Organizaciones sociales",
       isRelated: true,
       importance: "Poco importante",
       impactOnVenture: "Bajo impacto",
       impactOfVenture: "Impacto medio",
-      notes: "Fundación de recicladores de base con quienes coordinamos charlas."
+      notes: "Fundación de recicladores de base.",
     },
     {
       stakeholderKey: "instituciones_educacionales",
-      stakeholderName: "Instituciones educacionales",
       isRelated: true,
       importance: "Medianamente importante",
       impactOnVenture: "Impacto medio",
       impactOfVenture: "Impacto medio",
-      notes: "Convenio con Universidad técnica para ensayos de biodegradabilidad."
+      notes: "Convenio con una universidad para pruebas de biodegradabilidad.",
     },
     {
       stakeholderKey: "asociaciones_gremiales",
-      stakeholderName: "Asociaciones gremiales",
       isRelated: true,
       importance: "Poco importante",
       impactOnVenture: "Bajo impacto",
       impactOfVenture: "Bajo impacto",
-      notes: "Participación en gremio de emprendedores de triple impacto."
+      notes: "Participación en una red de emprendedores.",
     },
     {
       stakeholderKey: "medioambiente",
-      stakeholderName: "Medioambiente",
       isRelated: true,
       importance: "Muy importante",
       impactOnVenture: "Alto impacto",
       impactOfVenture: "Alto impacto",
-      notes: "Reducción directa de 40 toneladas de plástico virgen al año."
-    }
-  ]
+      notes: "Se evitan 40 toneladas de plástico nuevo al año.",
+    },
+    {
+      stakeholderKey: "otros",
+      isRelated: false,
+      importance: null,
+      impactOnVenture: null,
+      impactOfVenture: null,
+      notes: "",
+    },
+  ],
 };
